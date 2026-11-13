@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ymd, parseYmd, dow, mins, hhmm, relDay, esc, col, COLORS } from '../public/js/util.js';
+import { ymd, parseYmd, dow, mins, hhmm, relDay, esc, col, tint, COLORS, greeting } from '../public/js/util.js';
 
 test('ymd formats a local date as yyyy-mm-dd with zero padding', () => {
   assert.equal(ymd(new Date(2026, 0, 5)), '2026-01-05');
@@ -32,5 +32,19 @@ test('esc neutralises HTML in pasted text', () => {
 });
 
 test('col falls back to blue for an unknown colour key', () => {
-  assert.equal(col('nope'), COLORS.blue);
+  assert.equal(col('nope'), 'blue');
+  assert.equal(col('red'), 'red');
+  assert.ok(COLORS.includes('gray'));
+});
+
+test('tint builds the CSS variables for a colour', () => {
+  assert.equal(tint('red'), '--c:var(--c-red);--b:var(--b-red)');
+  assert.equal(tint(undefined), '--c:var(--c-blue);--b:var(--b-blue)');
+});
+
+test('greeting depends on the hour', () => {
+  assert.equal(greeting(8), 'Buenos días');
+  assert.equal(greeting(16), 'Buenas tardes');
+  assert.equal(greeting(22), 'Buenas noches');
+  assert.equal(greeting(3), 'Buenas noches');
 });

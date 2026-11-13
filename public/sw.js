@@ -1,10 +1,10 @@
 // Network first, cache as fallback: always the latest version when online, fully usable offline.
-const CACHE = 'cuaderno-v1';
+const CACHE = 'cuaderno-v2';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/app.js', 'js/db.js', 'js/store.js', 'js/ui.js', 'js/util.js', 'js/parts.js', 'js/editor.js', 'js/drawing.js',
-  'js/views/home.js', 'js/views/books.js', 'js/views/subject.js', 'js/views/timetable.js',
-  'js/views/calendar.js', 'js/views/tasks.js', 'js/views/search.js', 'js/views/settings.js',
+  'js/app.js', 'js/db.js', 'js/store.js', 'js/model.js', 'js/tabs.js', 'js/ui.js', 'js/util.js', 'js/parts.js', 'js/editor.js', 'js/drawing.js',
+  'js/views/home.js', 'js/views/page.js', 'js/views/timetable.js', 'js/views/calendar.js', 'js/views/tasks.js',
+  'js/views/trash.js', 'js/views/settings.js',
   'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 

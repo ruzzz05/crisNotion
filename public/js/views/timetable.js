@@ -1,9 +1,9 @@
 import * as S from '../store.js';
-import { h, icon, openForm, topbar } from '../ui.js';
-import { DAYS, DAYS_SHORT, col, dow, hhmm, mins } from '../util.js';
+import { h, icon, openForm, viewHead } from '../ui.js';
+import { DAYS, DAYS_SHORT, dow, hhmm, mins, tint } from '../util.js';
 import { subjectOptions } from '../parts.js';
 
-const HOUR = 64; // px per hour
+const HOUR = 60; // px per hour
 
 function slotForm(slot = {}) {
   openForm(slot.id ? 'Editar clase' : 'Nueva clase', [
@@ -24,7 +24,7 @@ function slotForm(slot = {}) {
   });
 }
 
-export function timetable(main) {
+export function timetable(root) {
   const st = S.settings();
   const slots = S.all('slot');
   const nDays = st.weekend || slots.some(s => s.day > 4) ? 7 : 5;
@@ -49,26 +49,25 @@ export function timetable(main) {
       const sub = S.liveSubject(s.subjectId);
       const height = y(mins(s.end)) - y(mins(s.start));
       return h('button', {
-        class: 'tt-slot' + (height < 44 ? ' short' : ''), type: 'button',
-        style: `top:${y(mins(s.start))}px;height:${height}px;--c:${col(sub?.color || 'slate')}`,
+        class: 'tt-slot' + (height < 42 ? ' short' : ''), type: 'button',
+        style: `top:${y(mins(s.start))}px;height:${height}px;${tint(sub?.color || 'gray')}`,
         onclick: () => slotForm(s),
       },
-      h('strong', null, sub ? sub.name : (s.title || 'Clase')),
+      h('strong', null, sub ? sub.title || 'Sin título' : (s.title || 'Clase')),
       h('small', null, `${s.start}–${s.end}${s.room ? ' · ' + s.room : ''}`));
     }),
     d === today && nowM >= from && nowM <= to && h('div', { class: 'tt-now', style: `top:${y(nowM)}px` }));
     cols.push(colEl);
   }
 
-  main.append(h('div', { class: 'wrap wide' },
-    topbar('Horario', {
-      sub: slots.length ? null : 'Toca un hueco para añadir una clase.',
-      actions: [h('button', { class: 'btn primary', type: 'button', onclick: () => slotForm({ day: today < nDays ? today : 0 }) }, icon('plus'), 'Clase')],
-    }),
+  root.classList.add('db');
+  root.append(
+    viewHead('🗓️', 'Horario', [h('button', { class: 'btn primary', type: 'button', onclick: () => slotForm({ day: today < nDays ? today : 0 }) }, icon('plus'), 'Clase')],
+      slots.length ? null : 'Toca un hueco de la cuadrícula para añadir una clase.'),
     h('div', { class: 'tt', style: `--days:${nDays};--h:${y(to)}px;--hour:${HOUR}px` },
       h('div', { class: 'tt-corner' }),
       DAYS.slice(0, nDays).map((d, i) => h('div', { class: 'tt-day' + (i === today ? ' today' : '') },
         h('span', { class: 'long' }, d), h('span', { class: 'short' }, DAYS_SHORT[i]))),
       h('div', { class: 'tt-hours' }, hours),
-      cols)));
+      cols));
 }

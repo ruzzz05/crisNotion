@@ -22,267 +22,395 @@ const browser = await puppeteer.launch({ executablePath: exe, headless: true, ar
 const errors = [];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function newPage(w, hgt) {
-  const ctx = await browser.createBrowserContext();
-  const page = await ctx.newPage();
-  await page.setViewport({ width: w, height: hgt, deviceScaleFactor: 2, hasTouch: false });
-  await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
-  page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-  page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
-  return page;
-}
-const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png` });
-const clickText = async (page, sel, text) => {
-  const ok = await page.evaluate((sel, text) => {
-    const el = [...document.querySelectorAll(sel)].find(e => e.textContent.trim().includes(text));
-    if (!el) return false; el.click(); return true;
-  }, sel, text);
-  if (!ok) throw new Error(`no ${sel} with "${text}"`);
-  await sleep(120);
-};
-const fill = async (page, sel, value) => { await page.click(sel, { clickCount: 3 }); await page.keyboard.type(value); };
+const ctx = await browser.createBrowserContext();
+const page = await ctx.newPage();
+await page.setViewport({ width: 1180, height: 820, deviceScaleFactor: 2 });
+await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
+page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+
+const shot = name => page.screenshot({ path: `${OUT}/${name}.png` });
 const check = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!cond) errors.push('assert: ' + msg); };
-/** True when every button of a toolbar lies inside the toolbar's own box (nothing scrolled out of sight). */
-const allVisible = (page, sel) => page.evaluate(sel => {
-  const bar = document.querySelector(sel).getBoundingClientRect();
-  return [...document.querySelectorAll(sel + ' button')].every(b => { const r = b.getBoundingClientRect(); return r.right <= bar.right + 1 && r.left >= bar.left - 1; });
-}, sel);
-
-// ---------- iPad flow ----------
-const page = await newPage(1024, 1366);
-await page.goto(URL0, { waitUntil: 'networkidle0' });
-await shot(page, '01-home-empty');
-
-await page.goto(URL0 + '#/books'); await sleep(150);
-await clickText(page, 'button', 'Crear mi primer libro');
-await fill(page, '.sheet input[type=text]', '2.º de Bachillerato');
-await clickText(page, '.sheet button', 'Guardar');
-check(await page.$('.cover') !== null, 'book created');
-await clickText(page, 'button', 'Nuevo libro');
-await fill(page, '.sheet input[type=text]', 'Academia de inglés');
-await page.evaluate(() => { document.querySelectorAll('.sheet .pick.swatch')[3].click(); document.querySelectorAll('.sheet .pick:not(.swatch)')[17].click(); });
-await clickText(page, '.sheet button', 'Guardar');
-await shot(page, '02-books');
-
-await page.click('.cover'); await sleep(150);
-const subs = [['Matemáticas II', 8, 5], ['Física', 11, 0], ['Lengua', 15, 1], ['Historia', 14, 6]];
-for (const [name, em, colr] of subs) {
-  await clickText(page, 'button', 'Asignatura');
-  await fill(page, '.sheet input[type=text]', name);
-  await page.evaluate((em, colr) => { document.querySelectorAll('.sheet .pick:not(.swatch)')[em].click(); document.querySelectorAll('.sheet .pick.swatch')[colr].click(); }, em, colr);
-  await clickText(page, '.sheet button', 'Guardar');
-}
-check((await page.$$('.subject')).length === 4, '4 subjects');
-await shot(page, '03-book');
-
-await page.click('.subject'); await sleep(150);
-await clickText(page, 'button', 'Crear la primera página'); await sleep(200);
-check(await page.evaluate(() => document.activeElement?.classList.contains('page-title')), 'title focused on new page');
-await page.keyboard.type('Tema 4: Derivadas');
-await page.keyboard.press('Enter');
-await page.keyboard.type('## Definición');
-await page.keyboard.press('Enter');
-await page.keyboard.type('La derivada mide como cambia una funcion en un punto.');
-await page.keyboard.press('Enter');
-await page.keyboard.type('- Regla de la cadena');
-await page.keyboard.press('Enter');
-await page.keyboard.type('Regla del producto');
-await page.keyboard.press('Enter');
-await page.keyboard.press('Enter');
-await page.keyboard.type('[] Hacer ejercicios 3 y 4');
-await page.keyboard.press('Enter');
-await page.keyboard.press('Enter');
-await page.keyboard.type('1. Primero');
-await page.keyboard.press('Enter');
-await page.keyboard.type('Segundo');
-await page.keyboard.press('Enter');
-await page.keyboard.press('Enter');
-await page.keyboard.type('> Recuerda repasar antes del examen');
-await page.keyboard.press('Enter');
-await page.keyboard.type('texto para unir');
-let types = await page.evaluate(() => [...document.querySelectorAll('.block')].map(b => b.className.replace('block b-', '')));
-console.log('types:', types.join(','));
-check(types.join(',') === 'h2,p,bullet,bullet,todo,num,num,quote,p', 'markdown shortcuts + enter behaviour');
-// backspace merge
-await page.keyboard.down('Control'); await page.keyboard.press('Home'); await page.keyboard.up('Control');
-await page.keyboard.press('Home');
-await page.keyboard.press('Backspace');
-types = await page.evaluate(() => [...document.querySelectorAll('.block')].map(b => b.className.replace('block b-', '')));
-const quoteText = await page.evaluate(() => document.querySelector('.b-quote .content').textContent);
-check(types.length === 8 && quoteText === 'Recuerda repasar antes del examentexto para unir', 'backspace merges into previous: ' + quoteText);
-// bold selection
-await page.keyboard.down('Shift'); for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight'); await page.keyboard.up('Shift');
-await page.click('.toolbar [aria-label="Negrita"]');
-await page.click('.toolbar [aria-label="Resaltar"]');
-const qh = await page.evaluate(() => document.querySelector('.b-quote .content').innerHTML);
-check(/<b[ >]|font-weight/.test(qh) && /background/.test(qh), 'bold + highlight applied: ' + qh);
-// todo check
-await page.click('.b-todo .check');
-check(await page.evaluate(() => document.querySelector('.b-todo').classList.contains('done')), 'todo toggles');
-
-// drawing
-await page.click('.toolbar [aria-label="Añadir dibujo a mano"]'); await sleep(400);
-check(await page.$('.draw-live') !== null, 'drawing block added');
-check(await allVisible(page, '.draw-bar'), 'every drawing tool is visible on iPad without scrolling the bar');
-const box = await (await page.$('.draw-live')).boundingBox();
-console.log('draw box', JSON.stringify(box));
-const stroke = async (pts) => { await page.mouse.move(pts[0][0], pts[0][1]); await page.mouse.down(); for (const [x, y] of pts.slice(1)) await page.mouse.move(x, y, { steps: 4 }); await page.mouse.up(); };
-const wave = (y, n = 24) => Array.from({ length: n }, (_, i) => [box.x + 60 + i * 22, box.y + y + Math.sin(i / 2) * 30]);
-await stroke(wave(90));
-await page.click('.draw-bar [aria-label="Subrayador"]');
-await stroke(wave(190));
-await page.click('.draw-bar [aria-label="Bolígrafo"]');
-await page.click('.draw-bar [aria-label="Color red"]');
-await stroke([[box.x + 100, box.y + 260], [box.x + 300, box.y + 300], [box.x + 500, box.y + 250]]);
-await sleep(600);
-const drawn = async () => page.evaluate(async () => {
+const count = sel => page.$$eval(sel, els => els.length);
+const texts = sel => page.$$eval(sel, els => els.map(e => e.textContent.trim()));
+const text = async sel => (await texts(sel))[0];
+const visible = sel => page.evaluate(sel => { const e = document.querySelector(sel); if (!e) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden'; }, sel);
+const clickText = async (sel, t) => {
+  const ok = await page.evaluate((sel, t) => { const el = [...document.querySelectorAll(sel)].find(e => e.textContent.trim().includes(t)); if (!el) return false; el.click(); return true; }, sel, t);
+  if (!ok) throw new Error(`no ${sel} with "${t}"`);
+  await sleep(150);
+};
+const type = async (s, enter = false) => { await page.keyboard.type(s); if (enter) await page.keyboard.press('Enter'); };
+const press = async (...keys) => { for (const k of keys) await page.keyboard.press(k); };
+const blocks = () => page.$$eval('.blk', els => els.map(e => ({ t: e.dataset.t, i: Number(e.style.getPropertyValue('--ind') || 0), text: e.querySelector('.content')?.textContent ?? '', hidden: e.offsetParent === null })));
+const shape = async () => (await blocks()).map(b => b.t + b.i).join(' ');
+const route = () => page.evaluate(() => location.hash.replace(/^#\/?/, ''));
+const drawings = () => page.evaluate(async () => {
   const d = await new Promise(r => { const q = indexedDB.open('cuaderno'); q.onsuccess = () => { const g = q.result.transaction('drawings').objectStore('drawings').getAll(); g.onsuccess = () => r(g.result); }; });
   return d.map(x => x.strokes.length);
 });
-check((await drawn())[0] === 3, 'three strokes persisted: ' + JSON.stringify(await drawn()));
-await page.click('.draw-bar [aria-label="Goma"]');
-await stroke([[box.x + 290, box.y + 280], [box.x + 300, box.y + 300], [box.x + 305, box.y + 305]]);
-await sleep(600);
-check((await drawn())[0] === 2, 'eraser removed a stroke');
-await page.click('.draw-bar [aria-label="Deshacer"]'); await sleep(600);
-check((await drawn())[0] === 3, 'undo restores stroke');
-const inked = await page.evaluate(() => { const c = document.querySelector('.draw-base'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
-check(inked > 2000, 'canvas has ink pixels: ' + inked);
-
-await page.click('.draw-bar [aria-label="Bolígrafo"]');
-const penThenTouch = await page.evaluate(() => {
-  const live = document.querySelector('.draw-live'); const r = live.getBoundingClientRect(); const view = document.getElementById('view');
-  const ev = (type, o) => live.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, ...o }));
-  ev('pointerdown', { pointerId: 7, pointerType: 'pen', pressure: 0.8, clientX: r.left + 600, clientY: r.top + 60, button: 0 });
-  ev('pointermove', { pointerId: 7, pointerType: 'pen', pressure: 0.9, clientX: r.left + 640, clientY: r.top + 80 });
-  ev('pointerup', { pointerId: 7, pointerType: 'pen', clientX: r.left + 640, clientY: r.top + 80 });
-  const before = view.scrollTop;
-  ev('pointerdown', { pointerId: 9, pointerType: 'touch', clientX: r.left + 300, clientY: r.top + 200, button: 0 });
-  ev('pointermove', { pointerId: 9, pointerType: 'touch', clientX: r.left + 300, clientY: r.top + 120 });
-  ev('pointerup', { pointerId: 9, pointerType: 'touch', clientX: r.left + 300, clientY: r.top + 120 });
-  return { before, after: view.scrollTop, penOnly: JSON.parse(localStorage.getItem('cuaderno:draw')).penOnly };
-});
-await sleep(600);
-check(penThenTouch.penOnly && penThenTouch.after > penThenTouch.before && (await drawn())[0] === 4, 'pencil draws, finger scrolls: ' + JSON.stringify(penThenTouch));
-await page.evaluate(() => { document.getElementById('view').scrollTop = 0; });
-
-// photo
-const png = 'iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mNk+M9Qz0AEYBxVSF+FAP5FDvcfRYWgAAAAAElFTkSuQmCC';
-writeFileSync(`${OUT}/photo.png`, Buffer.from(png, 'base64'));
-const input = await page.$('.paper input[type=file]');
-await input.uploadFile(`${OUT}/photo.png`);
-await sleep(700);
-check(await page.evaluate(() => { const i = document.querySelector('.b-image img'); return !!i && i.src.startsWith('blob:') && i.naturalWidth > 0; }), 'photo block shows image');
-await page.evaluate(() => { document.getElementById('view').scrollTop = 0; });
-await sleep(700);
-await shot(page, '04-editor');
-await page.evaluate(() => { document.getElementById('view').scrollTop = 500; }); await sleep(200);
-await shot(page, '04b-editor-draw');
-
-// second page tab + persistence after reload
-await page.click('.ptab.add'); await sleep(200);
-await page.keyboard.type('Ejercicios');
-await sleep(800);
-await page.reload({ waitUntil: 'networkidle0' });
-check(await page.evaluate(() => document.querySelectorAll('.ptab:not(.add)').length) === 2, 'two page tabs after reload');
-await clickText(page, '.ptab', 'Tema 4'); await sleep(500);
-const after = await page.evaluate(() => ({ blocks: document.querySelectorAll('.block').length, title: document.querySelector('.page-title').textContent }));
-check(after.title === 'Tema 4: Derivadas' && after.blocks >= 10, 'page content persisted: ' + JSON.stringify(after));
-const inked2 = await page.evaluate(() => { const c = document.querySelector('.draw-base'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
-check(inked2 > 2000, 'drawing redrawn after reload: ' + inked2);
-
-// timetable
-await page.goto(URL0 + '#/timetable'); await sleep(200);
-const addSlot = async (subjIdx, day, start, end, room) => {
-  await clickText(page, '.top button', 'Clase');
-  await page.evaluate((subjIdx, day, start, end, room) => {
-    const f = document.querySelector('.sheet form'); const [sub, dayS] = f.querySelectorAll('select'); const times = f.querySelectorAll('input[type=time]'); const texts = f.querySelectorAll('input[type=text]');
-    sub.selectedIndex = subjIdx; dayS.value = String(day); times[0].value = start; times[1].value = end; texts[1].value = room;
-  }, subjIdx, day, start, end, room);
-  await clickText(page, '.sheet button', 'Guardar');
+const section = async (name, fn) => {
+  console.log('\n# ' + name);
+  try { await fn(); } catch (e) { console.log('FAIL ' + name + ' threw: ' + e.message.split('\n')[0]); errors.push(`threw in "${name}": ${e.message.split('\n')[0]}`); await shot('error-' + name.replace(/\W+/g, '-')); }
 };
-const today = (new Date().getDay() + 6) % 7;
-const plan = [[1, 0, '08:30', '09:25', 'A12'], [2, 0, '09:25', '10:20', 'Lab'], [3, 1, '08:30', '09:25', ''], [4, 2, '10:45', '11:40', 'B3'], [1, 3, '11:40', '12:35', 'A12'], [2, 4, '08:30', '10:20', 'Lab'], [3, today > 4 ? 2 : today, '12:35', '13:30', 'A2']];
-for (const p of plan) await addSlot(...p);
-check((await page.$$('.tt-slot')).length === 7, 'timetable has 7 slots');
-// validation
-await clickText(page, '.top button', 'Clase');
-await page.evaluate(() => { const t = document.querySelectorAll('.sheet input[type=time]'); t[0].value = '10:00'; t[1].value = '09:00'; document.querySelector('.sheet select').selectedIndex = 1; });
-await clickText(page, '.sheet button', 'Guardar');
-check(await page.$('.sheet') !== null && await page.$('.toast') !== null, 'invalid slot rejected with message');
-await page.click('.sheet-head button'); await sleep(100);
-await shot(page, '05-timetable');
-
-// calendar
-await page.goto(URL0 + '#/calendar'); await sleep(200);
-const addEvent = async (title, kindIdx, offset) => {
-  await clickText(page, '.day-panel button', 'Evento');
-  await page.evaluate((title, kindIdx, offset) => {
-    const f = document.querySelector('.sheet form'); f.querySelector('input[type=text]').value = title; f.querySelectorAll('select')[0].selectedIndex = kindIdx;
-    const d = new Date(); d.setDate(d.getDate() + offset); f.querySelector('input[type=date]').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }, title, kindIdx, offset);
-  await clickText(page, '.sheet button', 'Guardar');
+/** Put the caret at the end of the block whose text is `t`. */
+const caretIn = async t => {
+  await page.evaluate(t => {
+    const c = [...document.querySelectorAll('.blk .content')].find(e => e.textContent === t);
+    c.focus(); const r = document.createRange(); r.selectNodeContents(c); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  }, t);
 };
-await addEvent('Examen de derivadas', 0, 3);
-await addEvent('Entrega comentario de texto', 1, 5);
-await addEvent('Excursión al museo', 2, 0);
-check((await page.$$('.cal-mark')).length >= 1, 'calendar shows marks');
-await shot(page, '06-calendar');
 
-// tasks
-await page.goto(URL0 + '#/tasks'); await sleep(200);
-for (const t of ['Ejercicios 3 y 4 de la página 52', 'Leer capítulo 2', 'Traer la calculadora']) { await page.type('.quick input', t); await page.keyboard.press('Enter'); await sleep(80); }
-check((await page.$$('.task')).length === 3, '3 tasks');
-await page.click('.task .check'); await sleep(100);
-check((await page.$$('.done-list .task')).length === 1, 'task marked done');
-await shot(page, '07-tasks');
+await page.goto(URL0, { waitUntil: 'networkidle0' });
 
-await page.goto(URL0 + '#/home'); await sleep(300);
-await shot(page, '08-home');
-
-await page.goto(URL0 + '#/search'); await sleep(200);
-await page.type('input[type=search]', 'cadena'); await sleep(200);
-check((await page.$$('.rows .row')).length === 1, 'search finds page body text');
-await shot(page, '09-search');
-
-// trash + restore
-await page.click('.rows .row'); await sleep(300);
-await page.click('[aria-label="Opciones de la página"]'); await sleep(100);
-await clickText(page, '.menu-item', 'Eliminar página');
-await clickText(page, '.sheet button', 'Eliminar'); await sleep(300);
-check(await page.evaluate(() => document.querySelectorAll('.ptab:not(.add)').length) === 1, 'page trashed');
-await page.goto(URL0 + '#/settings'); await sleep(200);
-await shot(page, '10-settings');
-await clickText(page, '.row button', 'Restaurar'); await sleep(200);
-await page.goBack(); await sleep(300);
-
-// export/import roundtrip
-const rt = await page.evaluate(async () => {
-  const S = await import('./js/store.js');
-  const data = await S.exportAll();
-  const json = JSON.stringify(data);
-  await S.importAll(JSON.parse(json));
-  return { docs: data.docs.length, drawings: data.drawings.length, blobs: data.blobs.length, kb: Math.round(json.length / 1024) };
+await section('shell', async () => {
+  check(await visible('.sidebar'), 'sidebar is visible on a tablet');
+  check(await count('.tabx') === 1 && (await text('.tabx.on')).includes('Inicio'), 'starts with one tab on Inicio');
+  check((await texts('.side-item')).join('|').includes('Horario') && (await texts('.side-item')).join('|').includes('Calendario'), 'sidebar lists Horario and Calendario');
+  check(!(await text('.topbar')).includes('null'), 'top bar shows no stray "null" on a built-in view');
+  const iconW = await page.$eval('.side-item[data-route=home] .ico', e => e.getBoundingClientRect().width);
+  check(iconW <= 20, 'sidebar icon keeps its size so the label sits next to it: ' + iconW);
+  await shot('01-home-empty');
 });
-check(rt.docs > 15 && rt.drawings === 1 && rt.blobs === 1, 'backup export/import roundtrip: ' + JSON.stringify(rt));
 
-// ---------- iPhone + dark, same data (new context => empty DB), so reuse the first context via viewport change ----------
-await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
-for (const [hash, name] of [['#/home', 'm1-home'], ['#/books', 'm2-books'], ['#/timetable', 'm3-timetable'], ['#/calendar', 'm4-calendar'], ['#/tasks', 'm5-tasks']]) {
-  await page.goto(URL0 + hash); await sleep(250); await shot(page, name);
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1 || document.getElementById('view').scrollWidth > document.getElementById('view').clientWidth + 1);
-  check(!overflow, 'no horizontal overflow on phone at ' + hash);
-}
-await page.goto(URL0 + '#/books'); await sleep(200); await page.click('.cover'); await sleep(200); await page.click('.subject'); await sleep(600);
-await clickText(page, '.ptab', 'Tema 4'); await sleep(500);
-await shot(page, 'm6-editor');
-check(await allVisible(page, '.draw-bar'), 'every drawing tool is visible on iPhone without scrolling the bar');
-check(!(await page.evaluate(() => document.getElementById('view').scrollWidth > document.getElementById('view').clientWidth + 1)), 'no horizontal overflow on phone in editor');
-await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
-await page.setViewport({ width: 1180, height: 820, deviceScaleFactor: 2 });
-await sleep(400); await shot(page, 'd1-editor-dark');
-await page.goto(URL0 + '#/home'); await sleep(250); await shot(page, 'd2-home-dark');
-await page.goto(URL0 + '#/timetable'); await sleep(250); await shot(page, 'd3-timetable-dark');
+await section('books and pages', async () => {
+  await page.click('.side-new-book'); await sleep(150);
+  await type('2.º de Bachillerato');
+  await clickText('.modal button', 'Guardar');
+  check(await count('.book') === 1 && (await text('.book-name')) === '2.º de Bachillerato', 'new book appears in the sidebar');
+  await page.click('.book-add'); await sleep(250);
+  check(await page.evaluate(() => document.activeElement?.classList.contains('page-title')), 'a new page opens with its title focused');
+  await type('Matemáticas II'); await sleep(100);
+  check((await text('.tree-row .tree-title')) === 'Matemáticas II', 'sidebar tree follows the title as it is typed');
+  check((await text('.tabx.on')).includes('Matemáticas II'), 'tab label follows the title');
+  check(!(await text('.page-head')).includes('null') && !(await text('.topbar')).includes('null'), 'page header and top bar show no stray "null"');
+  check((await texts('.crumb')).join(' > ') === '2.º de Bachillerato > Matemáticas II', 'breadcrumb shows book and page: ' + (await texts('.crumb')).join(' > '));
+});
+
+await section('slash menu', async () => {
+  await press('Enter');
+  await type('/tit'); await sleep(150);
+  check(await visible('.slash'), 'typing / opens the block menu');
+  const items = await texts('.slash-item .slash-label');
+  check(items.length >= 3 && items.every(t => t.includes('Título')), 'menu filters as you type: ' + items.join(','));
+  await press('Enter'); await sleep(100);
+  check(!(await visible('.slash')), 'menu closes after choosing');
+  await type('Derivadas');
+  const b = await blocks();
+  check(b.length === 1 && b[0].t === 'h1' && b[0].text === 'Derivadas', 'chosen block type is applied and the /query is removed: ' + JSON.stringify(b));
+  await press('Enter'); await type('/zzzz'); await sleep(100);
+  check((await text('.slash')).includes('Sin resultados'), 'menu says when nothing matches');
+  await press('Escape'); await sleep(50);
+  check(!(await visible('.slash')), 'Escape closes the menu');
+  for (let i = 0; i < 5; i++) await press('Backspace');
+});
+
+await section('typing, lists and nesting', async () => {
+  await type('Texto normal', true);
+  await type('- uno', true);
+  await type('dos'); await press('Tab');
+  check(await shape() === 'h10 p0 bullet0 bullet1', 'Tab nests a list item: ' + await shape());
+  await press('Enter');
+  check(await shape() === 'h10 p0 bullet0 bullet1 bullet1', 'Enter continues the list at the same depth');
+  await press('Enter');
+  check(await shape() === 'h10 p0 bullet0 bullet1 bullet0', 'Enter on an empty nested item outdents it');
+  await press('Enter');
+  check(await shape() === 'h10 p0 bullet0 bullet1 p0', 'Enter on an empty top-level item turns it into text');
+  await type('1. primero', true); await type('segundo');
+  check((await page.$$eval('.blk[data-t=num]', els => els.map(e => e.dataset.n))).join() === '1,2', 'numbered items count up');
+  await press('Enter', 'Enter');
+  await type('[] comprar regla');
+  await page.click('.blk[data-t=todo] .todo-box');
+  check(await page.$eval('.blk[data-t=todo]', e => e.classList.contains('done')), 'to-do can be ticked');
+  await press('Enter', 'Enter');
+});
+
+await section('toggle', async () => {
+  await type('> Demostración', true);
+  await type('paso oculto');
+  const b = await blocks();
+  check(b.at(-2).t === 'toggle' && b.at(-1).t === 'p' && b.at(-1).i === 1, 'Enter in an open toggle writes inside it');
+  await page.click('.blk[data-t=toggle] .tog'); await sleep(80);
+  check((await blocks()).at(-1).hidden, 'closing the toggle hides its content');
+  await page.click('.blk[data-t=toggle] .tog'); await sleep(80);
+  check(!(await blocks()).at(-1).hidden, 'opening the toggle shows it again');
+  await caretIn('paso oculto');
+  await press('Enter', 'Backspace');
+  check((await blocks()).at(-1).i === 0, 'Backspace on an empty nested block outdents it');
+});
+
+await section('code block', async () => {
+  await type('```'); await sleep(50);
+  check((await blocks()).at(-1).t === 'code', 'three backticks start a code block');
+  await type('x = 1', true); await type('y = 2');
+  const code = await page.$eval('.blk[data-t=code] .content', e => e.innerText);
+  check(await count('.blk[data-t=code]') === 1 && /x = 1\s+y = 2/.test(code), 'Enter stays inside the code block');
+});
+
+await section('drawing', async () => {
+  await page.click('.page-tail'); await sleep(80);
+  await type('/dibujo'); await sleep(120); await press('Enter'); await sleep(400);
+  check(await count('.blk[data-t=draw] .draw-live') === 1, 'drawing block added from the slash menu');
+  await page.$eval('.blk[data-t=draw]', e => e.scrollIntoView({ block: 'center' })); await sleep(200);
+  const box = await (await page.$('.draw-live')).boundingBox();
+  const stroke = async pts => { await page.mouse.move(pts[0][0], pts[0][1]); await page.mouse.down(); for (const [x, y] of pts.slice(1)) await page.mouse.move(x, y, { steps: 4 }); await page.mouse.up(); };
+  await stroke(Array.from({ length: 20 }, (_, i) => [box.x + 40 + i * 20, box.y + 60 + Math.sin(i / 2) * 25]));
+  await page.click('.draw-bar [aria-label="Subrayador"]');
+  await stroke(Array.from({ length: 20 }, (_, i) => [box.x + 40 + i * 20, box.y + 140 + Math.sin(i / 2) * 25]));
+  await sleep(600);
+  check((await drawings())[0] === 2, 'strokes are saved: ' + JSON.stringify(await drawings()));
+  await page.click('.draw-bar [aria-label="Goma"]');
+  await stroke([[box.x + 200, box.y + 130], [box.x + 210, box.y + 150]]); await sleep(600);
+  check((await drawings())[0] === 1, 'eraser removes a stroke');
+  await page.click('.draw-bar [aria-label="Deshacer"]'); await sleep(600);
+  check((await drawings())[0] === 2, 'undo brings it back');
+  await page.click('.draw-bar [aria-label="Bolígrafo"]');
+  const r = await page.evaluate(() => {
+    const live = document.querySelector('.draw-live'), q = live.getBoundingClientRect(), view = document.querySelector('.scroll');
+    const ev = (type, o) => live.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, ...o }));
+    ev('pointerdown', { pointerId: 7, pointerType: 'pen', pressure: 0.8, clientX: q.left + 500, clientY: q.top + 40, button: 0 });
+    ev('pointermove', { pointerId: 7, pointerType: 'pen', pressure: 0.9, clientX: q.left + 540, clientY: q.top + 60 });
+    ev('pointerup', { pointerId: 7, pointerType: 'pen', clientX: q.left + 540, clientY: q.top + 60 });
+    const before = view.scrollTop;
+    ev('pointerdown', { pointerId: 9, pointerType: 'touch', clientX: q.left + 300, clientY: q.top + 200, button: 0 });
+    ev('pointermove', { pointerId: 9, pointerType: 'touch', clientX: q.left + 300, clientY: q.top + 140 });
+    ev('pointerup', { pointerId: 9, pointerType: 'touch', clientX: q.left + 300, clientY: q.top + 140 });
+    return { before, after: view.scrollTop };
+  });
+  await sleep(600);
+  check((await drawings())[0] === 3 && r.after > r.before, 'pencil draws while a finger scrolls the page: ' + JSON.stringify(r));
+});
+
+await section('photo', async () => {
+  writeFileSync(`${OUT}/photo.png`, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mNk+M9Qz0AEYBxVSF+FAP5FDvcfRYWgAAAAAElFTkSuQmCC', 'base64'));
+  await (await page.$('input.photo-input')).uploadFile(`${OUT}/photo.png`); await sleep(700);
+  check(await page.evaluate(() => { const i = document.querySelector('.blk[data-t=image] img'); return !!i && i.src.startsWith('blob:') && i.naturalWidth > 0; }), 'photo block shows the picture');
+});
+
+await section('subpages', async () => {
+  await page.click('.page-tail'); await sleep(80);
+  await type('/pagina'); await sleep(120); await press('Enter'); await sleep(300);
+  check(await page.evaluate(() => document.activeElement?.classList.contains('page-title')), 'creating a subpage opens it');
+  await type('Tema 1: Límites'); await sleep(100);
+  check((await texts('.crumb')).length === 3, 'breadcrumb has three levels inside a subpage');
+  check((await texts('.tree-row .tree-title')).join('|') === 'Matemáticas II|Tema 1: Límites', 'subpage is nested in the sidebar tree: ' + (await texts('.tree-row .tree-title')).join('|'));
+  await press('Enter'); await type('Contenido del tema');
+  await page.click('.crumb:nth-of-type(2)'); await sleep(250);
+  check((await text('.blk[data-t=page]')).includes('Tema 1: Límites'), 'parent shows the subpage as a block');
+  await page.click('.blk[data-t=page] .page-link'); await sleep(250);
+  check((await page.$eval('.page-title', e => e.textContent)) === 'Tema 1: Límites', 'clicking the block opens the subpage');
+  await page.click('.tree-row .tree-title'); await sleep(250);
+  check((await page.$eval('.page-title', e => e.textContent)) === 'Matemáticas II', 'clicking a tree row opens that page');
+  await shot('02-page');
+});
+
+await section('formatting bubble', async () => {
+  await page.evaluate(() => { document.querySelector('.scroll').scrollTop = 0; });
+  await page.evaluate(() => {
+    const c = [...document.querySelectorAll('.blk .content')].find(e => e.textContent === 'Texto normal');
+    const r = document.createRange(); r.selectNodeContents(c); const s = getSelection(); s.removeAllRanges(); s.addRange(r); c.focus();
+    document.dispatchEvent(new Event('selectionchange'));
+  });
+  await sleep(250);
+  check(await visible('.bubble'), 'selecting text shows the formatting bubble');
+  await page.click('.bubble [aria-label="Negrita"]');
+  await page.click('.bubble [aria-label="Código"]'); await sleep(100);
+  const html = await page.evaluate(() => [...document.querySelectorAll('.blk .content')].find(e => e.textContent === 'Texto normal').innerHTML);
+  check(/<b|font-weight/.test(html) && /<code/.test(html), 'bold and inline code are applied: ' + html);
+  await shot('03-bubble');
+  await press('ArrowRight'); await sleep(250);
+  check(!(await visible('.bubble')), 'bubble hides when the selection collapses');
+});
+
+await section('block handle: drag, menu, colour', async () => {
+  const order = async () => (await blocks()).map(b => b.text).slice(0, 2).join('|');
+  check(await order() === 'Derivadas|Texto normal', 'before dragging: ' + await order());
+  const second = (await page.$$('.blk'))[1];
+  await second.hover(); await sleep(120);
+  const hb = await (await second.$('.g-drag')).boundingBox();
+  const first = await (await page.$('.blk')).boundingBox();
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + 4, first.y + 20, { steps: 6 });
+  await page.mouse.move(hb.x + 4, first.y + 2, { steps: 4 });
+  check(await visible('.drop-line'), 'a line shows where the block will land');
+  await page.mouse.up(); await sleep(150);
+  check(await order() === 'Texto normal|Derivadas', 'dragging the handle reorders blocks: ' + await order());
+  const n = await count('.blk');
+  await (await page.$('.blk')).hover(); await sleep(100);
+  await page.click('.blk:first-child .g-drag'); await sleep(150);
+  check(await visible('.pop'), 'clicking the handle opens the block menu');
+  await clickText('.pop .menu-item', 'Duplicar');
+  check(await count('.blk') === n + 1, 'Duplicar adds a copy');
+  await (await page.$('.blk')).hover(); await sleep(100);
+  await page.click('.blk:first-child .g-drag'); await sleep(150);
+  await clickText('.pop .menu-item', 'Eliminar');
+  check(await count('.blk') === n, 'Eliminar removes the block');
+  await (await page.$('.blk')).hover(); await sleep(100);
+  await page.click('.blk:first-child .g-drag'); await sleep(150);
+  await clickText('.pop .menu-item', 'Color');
+  await clickText('.pop .menu-item', 'Fondo azul');
+  check(await page.$eval('.blk', e => e.dataset.color === 'blue_bg'), 'block colour is applied');
+  await (await page.$('.blk')).hover(); await sleep(100);
+  await page.click('.blk:first-child .g-add'); await sleep(200);
+  check(await visible('.slash') && (await blocks())[1].text === '/', 'the + handle adds a block below and opens the menu');
+  await press('Escape', 'Backspace', 'Backspace');
+});
+
+await section('icon and cover', async () => {
+  await page.hover('.page-head');
+  await clickText('.page-ctl button', 'Añadir icono');
+  const icon = await text('.page-icon');
+  check(!!icon && (await text('.tree-row .tree-icon')) === icon, 'adding an icon shows it on the page and in the sidebar: ' + icon);
+  await page.hover('.page-head');
+  await clickText('.page-ctl button', 'Añadir portada');
+  check(await visible('.page-cover'), 'adding a cover shows it');
+  await page.click('.page-icon'); await sleep(150);
+  check(await visible('.pop .emoji-grid'), 'clicking the icon opens the emoji picker');
+  await page.click('.pop .emoji-grid button:nth-child(5)'); await sleep(150);
+  check((await text('.page-icon')) !== icon, 'picking an emoji changes the icon');
+  await shot('04-cover');
+});
+
+await section('tabs', async () => {
+  await page.click('.tab-new'); await sleep(200);
+  check(await count('.tabx') === 2 && (await text('.tabx.on')).includes('Inicio'), 'a new tab opens on Inicio');
+  await clickText('.side-item', 'Calendario'); await sleep(200);
+  check((await texts('.tabx')).map(t => t.replace(/\s+/g, ' ')).join('|').includes('Matemáticas II') && (await text('.tabx.on')).includes('Calendario'), 'navigating changes only the active tab: ' + (await texts('.tabx')).join('|'));
+  await page.click('.tabx:first-child'); await sleep(250);
+  check((await route()).startsWith('page/') && (await page.$eval('.page-title', e => e.textContent)) === 'Matemáticas II', 'switching tab shows its page');
+  await page.reload({ waitUntil: 'networkidle0' });
+  check(await count('.tabx') === 2 && (await text('.tabx.on')).includes('Matemáticas II'), 'tabs survive a reload');
+  await page.click('.tabx:nth-child(2) .tabx-close'); await sleep(150);
+  check(await count('.tabx') === 1, 'a tab can be closed');
+});
+
+await section('persistence', async () => {
+  const b = await blocks();
+  check(b.length >= 10 && b[0].text === 'Texto normal' && b.some(x => x.t === 'toggle') && b.some(x => x.t === 'code') && b.some(x => x.t === 'page'), 'blocks are still there after a reload: ' + b.map(x => x.t).join(','));
+  await sleep(500);
+  const inked = await page.evaluate(() => { const c = document.querySelector('.draw-base'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
+  check(inked > 1500, 'drawing is repainted after a reload: ' + inked);
+});
+
+await section('favourites and quick find', async () => {
+  await page.click('.top-fav'); await sleep(150);
+  check((await texts('.side-favs .tree-title')).join() === 'Matemáticas II', 'starred page appears under Favoritos');
+  await page.keyboard.down('Control'); await page.keyboard.press('k'); await page.keyboard.up('Control'); await sleep(200);
+  check(await page.evaluate(() => document.activeElement?.closest('.finder') !== null), 'Ctrl+K opens quick find with the input focused');
+  await type('contenido del'); await sleep(200);
+  check((await texts('.finder-item')).length === 1 && (await text('.finder-item')).includes('Tema 1'), 'quick find searches inside pages');
+  await shot('05-finder');
+  await press('Enter'); await sleep(250);
+  check((await page.$eval('.page-title', e => e.textContent)) === 'Tema 1: Límites', 'Enter opens the result');
+});
+
+await section('second subject and timetable', async () => {
+  await page.click('.book-add'); await sleep(250);
+  await type('Física'); await sleep(100);
+  await clickText('.side-item', 'Horario'); await sleep(200);
+  const add = async (subj, day, start, end, room) => {
+    await clickText('.view-actions button', 'Clase');
+    await page.evaluate((subj, day, start, end, room) => {
+      const f = document.querySelector('.modal form'); const [sub, dayS] = f.querySelectorAll('select'); const times = f.querySelectorAll('input[type=time]'); const txt = f.querySelectorAll('input[type=text]');
+      sub.selectedIndex = subj; dayS.value = String(day); times[0].value = start; times[1].value = end; txt[1].value = room;
+    }, subj, day, start, end, room);
+    await clickText('.modal button', 'Guardar');
+  };
+  const today = (new Date().getDay() + 6) % 7, d = today > 4 ? 2 : today;
+  check((await page.$$eval('.modal-probe, .tt', e => e.length)) >= 1, 'timetable grid is shown');
+  await add(1, 0, '08:30', '09:25', 'A12'); await add(2, 0, '09:25', '10:20', 'Lab'); await add(1, 2, '10:45', '11:40', ''); await add(2, d, '12:35', '13:30', 'Lab');
+  check(await count('.tt-slot') === 4, 'classes appear in the grid');
+  check((await texts('.tt-slot strong')).includes('Física'), 'a class shows its subject name');
+  await clickText('.view-actions button', 'Clase');
+  await page.evaluate(() => { const t = document.querySelectorAll('.modal input[type=time]'); t[0].value = '10:00'; t[1].value = '09:00'; document.querySelector('.modal select').selectedIndex = 1; });
+  await clickText('.modal button', 'Guardar');
+  check(await visible('.modal') && await visible('.toast'), 'a class that ends before it starts is rejected with a message');
+  await page.click('.modal-close'); await sleep(3300);
+  await shot('06-timetable');
+});
+
+await section('calendar and tasks', async () => {
+  await clickText('.side-item', 'Calendario'); await sleep(200);
+  const add = async (title, kind, offset) => {
+    await clickText('.view-actions button', 'Nuevo');
+    await page.evaluate((title, kind, offset) => {
+      const f = document.querySelector('.modal form'); f.querySelector('input[type=text]').value = title; f.querySelectorAll('select')[0].selectedIndex = kind;
+      const d = new Date(); d.setDate(d.getDate() + offset); f.querySelector('input[type=date]').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }, title, kind, offset);
+    await clickText('.modal button', 'Guardar');
+  };
+  await add('Examen de derivadas', 0, 0); await add('Entrega de problemas', 1, 2);
+  check((await texts('.cal-ev')).some(t => t.includes('Examen de derivadas')), 'events show inside the month grid');
+  check((await texts('.cal-cell.today .cal-ev')).length >= 1, 'today is marked and holds its event');
+  await shot('07-calendar');
+  await clickText('.side-item', 'Tareas'); await sleep(200);
+  for (const t of ['Ejercicios 3 y 4', 'Leer capítulo 2']) { await page.click('.quick input'); await type(t, true); await sleep(100); }
+  check(await count('.task') === 2, 'tasks are added with Enter');
+  await page.click('.task .todo-box'); await sleep(120);
+  check(await count('.task.done') === 1, 'a task can be ticked');
+  await shot('08-tasks');
+  await clickText('.side-item', 'Inicio'); await sleep(250);
+  check((await text('.view')).includes('Examen de derivadas') && (await text('.view')).includes('Matemáticas II'), 'home shows upcoming events and recent pages');
+  await shot('09-home');
+});
+
+await section('trash', async () => {
+  await clickText('.tree-row .tree-title', 'Física'); await sleep(250);
+  await page.click('.top-more'); await sleep(150);
+  await clickText('.pop .menu-item', 'Eliminar'); await sleep(250);
+  check(!(await texts('.tree-row .tree-title')).includes('Física') && !(await route()).startsWith('page/'), 'deleting a page removes it from the tree and leaves the page');
+  check((await texts('.tt-slot, .view')).join(' ').length > 0, 'app still renders after deleting');
+  await clickText('.side-item', 'Papelera'); await sleep(200);
+  check((await text('.view')).includes('Física'), 'deleted page is listed in the trash');
+  await clickText('.view button', 'Restaurar'); await sleep(200);
+  check((await texts('.tree-row .tree-title')).includes('Física'), 'restoring puts it back in the tree');
+});
+
+await section('backup', async () => {
+  const rt = await page.evaluate(async () => {
+    const S = await import('./js/store.js');
+    const data = await S.exportAll(); const json = JSON.stringify(data);
+    await S.importAll(JSON.parse(json));
+    return { docs: data.docs.length, drawings: data.drawings.length, blobs: data.blobs.length };
+  });
+  check(rt.docs >= 10 && rt.drawings === 1 && rt.blobs === 1, 'backup exports and re-imports everything: ' + JSON.stringify(rt));
+});
+
+await section('dark mode', async () => {
+  await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
+  await clickText('.tree-row .tree-title', 'Matemáticas II'); await sleep(500);
+  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  check(bg === 'rgb(25, 25, 25)', 'dark mode uses the dark background: ' + bg);
+  await shot('10-dark');
+  await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
+});
+
+await section('phone', async () => {
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
+  await page.reload({ waitUntil: 'networkidle0' }); await sleep(300);
+  const off = () => page.evaluate(() => document.querySelector('.sidebar').getBoundingClientRect().right <= 1);
+  check(await off(), 'sidebar is off-screen on a phone');
+  check(await visible('.kbar'), 'phone shows the editing toolbar');
+  const noOverflow = async where => check(!(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1 || document.querySelector('.scroll').scrollWidth > document.querySelector('.scroll').clientWidth + 1)), 'no sideways scrolling on a phone: ' + where);
+  await noOverflow('page');
+  await shot('m1-page');
+  await page.tap('.kbar [aria-label="Añadir bloque"]'); await sleep(250);
+  check(await visible('.slash'), 'toolbar + opens the block menu');
+  await shot('m2-slash');
+  await clickText('.slash-item', 'Lista con viñetas'); await sleep(150);
+  check((await blocks()).some(b => b.t === 'bullet' && b.text === ''), 'choosing from the toolbar menu adds that block');
+  await page.tap('.side-toggle'); await sleep(350);
+  check(!(await off()), 'the menu button slides the sidebar in');
+  await shot('m3-sidebar');
+  await clickText('.side-item', 'Horario'); await sleep(350);
+  check(await off() && await count('.tt') === 1, 'choosing an item closes the sidebar and opens it');
+  await noOverflow('timetable'); await shot('m4-timetable');
+  await page.tap('.side-toggle'); await sleep(300); await clickText('.side-item', 'Calendario'); await sleep(350);
+  await noOverflow('calendar'); await shot('m5-calendar');
+  await page.tap('.side-toggle'); await sleep(300); await clickText('.side-item', 'Inicio'); await sleep(350);
+  await noOverflow('home'); await shot('m6-home');
+});
 
 console.log('\nERRORS:', errors.length ? '\n' + errors.join('\n') : 'none');
 await browser.close();

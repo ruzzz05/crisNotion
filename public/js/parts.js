@@ -1,19 +1,22 @@
 // Pieces shared by several views: event and task rows and their forms.
 import * as S from './store.js';
 import { h, icon, app, openForm } from './ui.js';
-import { col, relDay, ymd } from './util.js';
+import { relDay, tint, ymd } from './util.js';
 
 export const KINDS = { examen: ['Examen', 'red'], entrega: ['Entrega', 'orange'], evento: ['Evento', 'blue'] };
 
+export const subjectName = s => `${s.icon ? s.icon + ' ' : ''}${s.title || 'Sin título'}`;
+
+/** Subjects are the top-level pages of each book. */
 export function subjectOptions(none = 'Sin asignatura') {
   const out = [['', none]];
-  for (const b of S.all('book')) for (const s of S.subjectsOf(b.id)) out.push([s.id, `${s.emoji} ${s.name}`]);
+  for (const b of S.all('book')) for (const s of S.children({ bookId: b.id })) out.push([s.id, subjectName(s)]);
   return out;
 }
 
 export function subjectTag(id) {
   const s = S.liveSubject(id);
-  return s && h('span', { class: 'tag', style: `--c:${col(s.color)}` }, `${s.emoji} ${s.name}`);
+  return s && h('span', { class: 'tag', style: tint(s.color) }, subjectName(s));
 }
 
 export function eventForm(ev = {}) {
@@ -51,14 +54,14 @@ export function eventRow(e) {
     h('span', { class: 'row-date' }, relDay(e.date), e.time && h('small', null, e.time)),
     h('span', { class: 'row-main' },
       h('span', { class: 'row-t' }, e.title),
-      h('span', { class: 'row-meta' }, h('span', { class: 'tag', style: `--c:${col(color)}` }, label), subjectTag(e.subjectId))));
+      h('span', { class: 'row-meta' }, h('span', { class: 'tag', style: tint(color) }, label), subjectTag(e.subjectId))));
 }
 
 export function taskRow(t) {
   const late = !t.done && t.due && t.due < ymd(new Date());
   return h('div', { class: 'row task' + (t.done ? ' done' : '') },
     h('button', {
-      class: 'check', type: 'button', 'aria-label': t.done ? 'Marcar como pendiente' : 'Marcar como hecha',
+      class: 'todo-box', type: 'button', 'aria-label': t.done ? 'Marcar como pendiente' : 'Marcar como hecha',
       onclick: () => { t.done = !t.done; S.put(t); app.refresh(); },
     }, icon('check')),
     h('button', { class: 'row-main', type: 'button', onclick: () => taskForm(t) },

@@ -12,7 +12,7 @@ const BG_LABEL = { grid: 'Cuadrícula', lines: 'Rayas', plain: 'Liso' };
 
 const dark = matchMedia('(prefers-color-scheme: dark)');
 const palette = () => ({
-  ink: dark.matches ? '#E8ECF8' : '#1B2440', blue: dark.matches ? '#7B96FF' : '#2447D6', red: '#E5484D',
+  ink: dark.matches ? '#E6E6E4' : '#37352F', blue: dark.matches ? '#5B9DF0' : '#2383E2', red: '#E5484D',
   green: '#2F9E44', orange: '#F08C00', purple: dark.matches ? '#A78BFA' : '#7048E8', yellow: '#FFD43B',
 });
 
@@ -176,7 +176,7 @@ export function mountDrawing(host, block, changed) {
 
   live.addEventListener('pointermove', e => {
     if (pan && e.pointerId === pan.id) {
-      const scroller = document.getElementById('view');
+      const scroller = host.closest('.scroll');
       scroller.scrollTop -= e.clientY - pan.y;
       pan.y = e.clientY;
       return;

@@ -4,13 +4,15 @@ PWA de apuntes para iPhone y iPad: un Notion reducido a lo que hace falta en cla
 
 ## Qué hace
 
-- **Libros → asignaturas → páginas.** Cada página es una pestaña dentro de su asignatura.
-- **Editor por bloques:** texto, títulos, listas, tareas, citas, destacados, separadores, fotos y dibujo a mano.
-  Atajos al escribir: `# `, `## `, `- `, `[] `, `1. `, `> `, `---` y `/` para el menú de bloques.
+- **Barra lateral con árbol de páginas.** Los libros agrupan asignaturas; cada página puede tener subpáginas sin límite.
+- **Pestañas** como en un navegador: cada una recuerda su página o vista.
+- **Editor por bloques:** texto, títulos, listas anidadas, tareas, desplegables, citas, destacados, código, divisor, imagen, dibujo y subpágina.
+  Menú  con filtro, atajos (, , , , , , , tres acentos graves), Tab para anidar, arrastre para reordenar, color por bloque y burbuja de formato al seleccionar.
+- **Icono y portada** por página, favoritos, migas de pan, búsqueda rápida con Ctrl/Cmd+K y papelera.
 - **Dibujo a mano** con Apple Pencil (presión, subrayador, goma, deshacer). Cuando detecta el lápiz, el dedo desplaza la página en vez de pintar.
 - **Fotos** desde la cámara o la galería, reducidas y guardadas en el dispositivo.
-- **Horario** semanal y **calendario** de exámenes, entregas y eventos.
-- **Tareas**, búsqueda global, favoritas, papelera y copia de seguridad en un archivo.
+- **Horario** semanal, **calendario** mensual de exámenes y entregas, y **tareas**.
+- En pantallas táctiles, barra de herramientas sobre el teclado.
 - Funciona sin conexión. Los datos viven en IndexedDB; la sincronización con Firebase está pendiente.
 
 ## Uso
@@ -30,9 +32,11 @@ Para instalarla en iPhone o iPad hace falta servirla por HTTPS, abrirla en Safar
 
 | Ruta | Contenido |
 | --- | --- |
-| `public/js/store.js`, `db.js` | Datos en memoria con escritura en IndexedDB |
-| `public/js/editor.js` | Editor por bloques |
-| `public/js/drawing.js` | Lienzo de dibujo vectorial |
-| `public/js/views/` | Una pantalla por archivo |
-| `public/sw.js` | Service worker (red primero, caché de respaldo) |
-| `tests/` | Pruebas unitarias y de extremo a extremo |
+| ,  | Lógica pura (árbol, bloques anidados, pestañas), con pruebas unitarias |
+| ,  | Datos en memoria con escritura en IndexedDB |
+|  | Barra lateral, pestañas, migas de pan y búsqueda |
+|  | Editor por bloques |
+|  | Lienzo de dibujo vectorial |
+|  | Una pantalla por archivo |
+|  | Service worker (red primero, caché de respaldo) |
+|  | Pruebas unitarias y de extremo a extremo |
