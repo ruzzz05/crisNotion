@@ -5,6 +5,11 @@
   "type": "module",
   "description": "PWA de apuntes, horario y calendario para iPhone y iPad.",
   "scripts": {
-    "dev": "node scripts/serve.mjs"
+    "dev": "node scripts/serve.mjs",
+    "test": "node --test tests/",
+    "test:e2e": "node tests/e2e.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.17.0"
   }
 }

@@ -167,7 +167,7 @@ h1, h2, h3, p { margin: 0; }
 
 /* Drawing */
 .draw { flex: 1; min-width: 0; margin: 8px 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden; }
-.draw-bar { padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.draw-bar { padding: 4px 6px; border-bottom: 1px solid var(--line); flex-wrap: wrap; overflow: visible; }
 .draw-bar .tb { min-width: 38px; height: 38px; }
 .draw-bar .ico { width: 20px; height: 20px; }
 .dot { display: block; width: 20px; height: 20px; border-radius: 50%; }
