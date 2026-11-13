@@ -1,0 +1,10 @@
+{
+  "name": "cuaderno",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PWA de apuntes, horario y calendario para iPhone y iPad.",
+  "scripts": {
+    "dev": "node scripts/serve.mjs"
+  }
+}
