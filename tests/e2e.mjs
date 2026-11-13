@@ -65,6 +65,8 @@ await page.goto(URL0, { waitUntil: 'networkidle0' });
 
 await section('shell', async () => {
   check(await visible('.sidebar'), 'sidebar is visible on a tablet');
+  const paper = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  check(paper === 'rgb(245, 240, 230)', 'the default background is beige: ' + paper);
   check(await count('.tabx') === 1 && (await text('.tabx.on')).includes('Inicio'), 'starts with one tab on Inicio');
   check((await texts('.side-item')).join('|').includes('Horario') && (await texts('.side-item')).join('|').includes('Calendario'), 'sidebar lists Horario and Calendario');
   check(!(await text('.topbar')).includes('null'), 'top bar shows no stray "null" on a built-in view');
@@ -272,6 +274,62 @@ await section('icon and cover', async () => {
   await shot('04-cover');
 });
 
+await section('columns', async () => {
+  const box = t => page.evaluate(t => {
+    const e = [...document.querySelectorAll('.blk')].find(x => x.querySelector('.content')?.textContent === t), r = e.getBoundingClientRect();
+    return { l: r.left, r: r.right, t: r.top, b: r.bottom };
+  }, t);
+  const beside = async () => { const a = await box('Texto normal'), b = await box('Derivadas'); return b.l >= a.r - 1 && b.t < a.b && a.t < b.b; };
+  const top3 = async () => (await blocks()).slice(0, 3).map(b => b.text).join('|');
+  const menuOf = async (index, item) => {
+    const el = (await page.$$('.blk'))[index];
+    await el.hover(); await sleep(120);
+    await (await el.$('.g-drag')).click(); await sleep(150);
+    await clickText('.pop .menu-item', item);
+  };
+  check(!(await beside()), 'blocks start stacked');
+  await menuOf(1, 'Poner al lado del bloque anterior');
+  check(await beside(), 'the block menu places a block beside the previous one');
+  await caretIn('Texto normal');
+  await press('Enter'); await type('debajo de la fila');
+  check(await top3() === 'Texto normal|Derivadas|debajo de la fila', 'Enter inside a column continues below the row: ' + await top3());
+  const a = await box('Texto normal'), b = await box('Derivadas'), c = await box('debajo de la fila');
+  check(c.t >= Math.max(a.b, b.b) - 1 && c.r - c.l > (a.r - a.l) * 1.5, 'the block under a row is full width again');
+  await menuOf(1, 'Sacar de la columna');
+  check(!(await beside()) && await top3() === 'Texto normal|Derivadas|debajo de la fila', 'a block can be taken out of its column');
+  const second = (await page.$$('.blk'))[1];
+  await second.hover(); await sleep(120);
+  const hb = await (await second.$('.g-drag')).boundingBox();
+  const target = await box('Texto normal');
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target.r - 40, (target.t + target.b) / 2, { steps: 8 });
+  await page.mouse.move(target.r - 12, (target.t + target.b) / 2, { steps: 3 });
+  check(await visible('.drop-line.v'), 'dragging to the side of a block shows an upright line');
+  await page.mouse.up(); await sleep(150);
+  check(await beside(), 'dropping on the side of a block makes two columns');
+  await shot('04b-columns');
+});
+
+await section('page background', async () => {
+  const bg = () => page.$eval('.scroll', e => { const s = getComputedStyle(e); return { c: s.backgroundColor, i: s.backgroundImage }; });
+  await page.evaluate(() => { document.querySelector('.scroll').scrollTop = 0; });
+  await page.hover('.page-head');
+  await clickText('.page-ctl button', 'Fondo');
+  check(await visible('.pop .bg-grid'), 'the Fondo button opens the background picker');
+  await (await page.$('input.bg-input')).uploadFile(`${OUT}/photo.png`); await sleep(700);
+  check((await bg()).i.includes('blob:'), 'a picture can be set as the page background: ' + (await bg()).i.slice(0, 20));
+  await page.hover('.page-head');
+  await clickText('.page-ctl button', 'Fondo');
+  await page.click('.pop .bg-grid [data-bg="blue"]'); await sleep(150);
+  check((await bg()).c === 'rgb(231, 243, 248)' && (await bg()).i === 'none', 'choosing a colour replaces the picture: ' + JSON.stringify(await bg()));
+  await clickText('.side-item', 'Inicio'); await sleep(200);
+  check((await bg()).c === 'rgba(0, 0, 0, 0)', 'other views keep the default background');
+  await clickText('.book .tree-row .tree-title', 'Matemáticas II'); await sleep(250);
+  check((await bg()).c === 'rgb(231, 243, 248)', 'the page gets its background back when reopened');
+  await shot('04c-background');
+});
+
 await section('tabs', async () => {
   await page.click('.tab-new'); await sleep(200);
   check(await count('.tabx') === 2 && (await text('.tabx.on')).includes('Inicio'), 'a new tab opens on Inicio');
@@ -288,6 +346,8 @@ await section('tabs', async () => {
 await section('persistence', async () => {
   const b = await blocks();
   check(b.length >= 10 && b[0].text === 'Texto normal' && b.some(x => x.t === 'toggle') && b.some(x => x.t === 'code') && b.some(x => x.t === 'page'), 'blocks are still there after a reload: ' + b.map(x => x.t).join(','));
+  check(await count('.blk.in-row') === 2, 'columns survive a reload');
+  check((await page.$eval('.scroll', e => getComputedStyle(e).backgroundColor)) === 'rgb(231, 243, 248)', 'page background survives a reload');
   await sleep(500);
   const inked = await page.evaluate(() => { const c = document.querySelector('.draw-base'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
   check(inked > 1500, 'drawing is repainted after a reload: ' + inked);

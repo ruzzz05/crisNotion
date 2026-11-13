@@ -64,6 +64,7 @@ export function purge(id) {
       if (b.t === 'image') delBlob(b.blob);
     }
     if (d.cover?.startsWith('img:')) delBlob(d.cover.slice(4));
+    if (d.bg?.startsWith('img:')) delBlob(d.bg.slice(4));
   }
   remove(id);
 }

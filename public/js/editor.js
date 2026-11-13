@@ -4,7 +4,7 @@
 import * as S from './store.js';
 import { h, icon, app, menu, pop, placeNear, toast } from './ui.js';
 import { COLORS, COLOR_NAMES, esc, tint } from './util.js';
-import { filterCommands, hidden, maxIndent, moveRange, numbering, rangeEnd } from './model.js';
+import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, rangeEnd, rowOf, rowSizes } from './model.js';
 import { mountDrawing } from './drawing.js';
 
 const TEXT = new Set(['p', 'h1', 'h2', 'h3', 'bullet', 'num', 'todo', 'toggle', 'quote', 'callout', 'code']);
@@ -179,7 +179,8 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
 
   /** Make the DOM match page.blocks, reusing existing elements so focus and canvases survive. */
   function sync() {
-    const hid = hidden(page.blocks), nums = numbering(page.blocks), live = new Set();
+    normalizeRows(page.blocks);
+    const hid = hidden(page.blocks), nums = numbering(page.blocks), cols = rowSizes(page.blocks), live = new Set();
     let cursor = list.firstChild;
     for (const b of page.blocks) {
       live.add(b.id);
@@ -193,6 +194,8 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       }
       if (el === cursor) cursor = cursor.nextSibling; else list.insertBefore(el, cursor);
       el.style.setProperty('--ind', ind(b));
+      el.style.setProperty('--cols', cols.get(b.id) || 1);
+      el.classList.toggle('in-row', cols.has(b.id));
       el.hidden = hid.has(b.id);
       el.classList.toggle('done', !!b.checked);
       el.classList.toggle('open', !!b.open);
@@ -240,6 +243,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
 
   function shiftIndent(id, delta) {
     const i = I(id), b = page.blocks[i];
+    if (b.row) return; // columns hold a single block, so they do not nest
     const want = Math.max(0, Math.min(ind(b) + delta, maxIndent(page.blocks, i)));
     const d = want - ind(b);
     if (!d) return;
@@ -261,14 +265,14 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     if (t === 'image') { imageAfter = { id: b.id, replace: blank && b.t === 'p' }; picker.click(); return; }
     if (TEXT.has(t)) {
       if (blank) return setType(b.id, t);
-      const nb = insertAt(rangeEnd(page.blocks, I(b.id)), mk(t, { indent: ind(b), ...(t === 'toggle' ? { open: true } : {}) }));
+      const nb = insertAt(belowIndex(page.blocks, I(b.id)), mk(t, { indent: ind(b), ...(t === 'toggle' ? { open: true } : {}) }));
       return place(C(nb.id), false);
     }
     const nb = mk(t, { indent: ind(b) });
     delete nb.html;
     if (t === 'page') nb.pageId = S.newPage({ bookId: page.bookId, parentId: page.id }).id;
-    if (blank && b.t === 'p') page.blocks.splice(I(b.id), 1, nb);
-    else page.blocks.splice(rangeEnd(page.blocks, I(b.id)), 0, nb);
+    if (blank && b.t === 'p') { if (b.row) nb.row = b.row; page.blocks.splice(I(b.id), 1, nb); }
+    else page.blocks.splice(belowIndex(page.blocks, I(b.id)), 0, nb);
     sync();
     touch();
     if (t === 'page') { flush(); return app.go('page/' + nb.pageId, { focusTitle: true }); }
@@ -279,7 +283,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
 
   function addBelow(id) {
     const i = I(id), b = page.blocks[i];
-    const target = TEXT.has(b.t) && b.t === 'p' && isEmpty(id) ? b : insertAt(rangeEnd(page.blocks, i), mk('p', { indent: ind(b) }));
+    const target = TEXT.has(b.t) && b.t === 'p' && isEmpty(id) ? b : insertAt(belowIndex(page.blocks, i), mk('p', { indent: ind(b) }));
     place(C(target.id), true);
     document.execCommand('insertText', false, '/');
   }
@@ -291,7 +295,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     for (const f of files) {
       try {
         const nb = { id: S.uid(), t: 'image', blob: await S.saveBlob(await shrink(f)), w: 100, indent: 0 };
-        insertAt(I(after) + 1, nb);
+        insertAt(belowIndex(page.blocks, I(after)), nb);
         after = nb.id;
       } catch (err) {
         console.error(err);
@@ -306,8 +310,17 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     const i = I(id), b = page.blocks[i];
     pull(id);
     const copy = { ...b, id: S.uid() };
+    delete copy.row;
     if (b.t === 'draw') S.getDrawing(id).then(d => d && S.putDrawing({ id: copy.id, strokes: d.strokes })).then(() => { drop(copy.id); sync(); });
-    insertAt(rangeEnd(page.blocks, i), copy);
+    insertAt(belowIndex(page.blocks, i), copy);
+  }
+
+  /** Adopt a new block order from the model; a refused move returns the same array. */
+  function setBlocks(out) {
+    if (out === page.blocks) return toast('Ese bloque no se puede poner en columnas.');
+    page.blocks = out;
+    sync();
+    touch();
   }
 
   function blockMenu(id, anchor) {
@@ -333,6 +346,8 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       },
       ...(b.t === 'image' ? [{ sep: true }, size('Tamaño pequeño', 35), size('Tamaño mediano', 60), size('Ancho completo', 100)] : []),
       { sep: true },
+      !b.row && i > 0 && { label: 'Poner al lado del bloque anterior', icon: 'columns', fn: () => setBlocks(joinRow(page.blocks, i, i - 1, 'right', S.uid())) },
+      b.row && { label: 'Sacar de la columna', icon: 'columns', fn: () => setBlocks(leaveRow(page.blocks, i)) },
       i > 0 && { label: 'Subir', icon: 'up', fn: () => swap(-1) },
       rangeEnd(page.blocks, i) < page.blocks.length && { label: 'Bajar', icon: 'down', fn: () => swap(1) },
     ]);
@@ -350,6 +365,21 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       moved = true;
       root.classList.add('dragging');
       const shownEls = [...list.children].filter(x => !x.hidden);
+      const box = root.getBoundingClientRect();
+      const over = shownEls.find(x => { const r = x.getBoundingClientRect(); return x.dataset.id !== id && ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom; });
+      if (over) {
+        const r = over.getBoundingClientRect(), frac = (ev.clientX - r.left) / r.width;
+        if (frac < 0.25 || frac > 0.75) {
+          // Near the left or right edge: drop beside the block to make columns.
+          target = { beside: over.dataset.id, side: frac < 0.25 ? 'left' : 'right' };
+          line.hidden = false;
+          line.classList.add('v');
+          line.style.cssText = `top:${r.top - box.top}px;height:${r.height}px;left:${(frac < 0.25 ? r.left : r.right) - box.left - 2}px`;
+          return;
+        }
+      }
+      line.classList.remove('v');
+      line.style.cssText = '';
       let y = shownEls.at(-1).getBoundingClientRect().bottom;
       target = page.blocks.length;
       for (const x of shownEls) {
@@ -357,7 +387,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
         if (ev.clientY < r.top + r.height / 2) { target = I(x.dataset.id); y = r.top; break; }
       }
       line.hidden = false;
-      line.style.top = y - root.getBoundingClientRect().top - 2 + 'px';
+      line.style.top = y - box.top - 2 + 'px';
     };
     const up = () => {
       removeEventListener('pointermove', move);
@@ -366,8 +396,12 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       line.hidden = true;
       root.classList.remove('dragging');
       if (!moved) return blockMenu(id, btn);
+      pull(id);
+      if (target?.beside) return setBlocks(joinRow(page.blocks, I(id), I(target.beside), target.side, S.uid()));
+      const wasInRow = !!B(id).row;
+      delete B(id).row; // a plain up/down drop takes the block out of its column
       const out = moveRange(page.blocks, I(id), target);
-      if (out !== page.blocks) { pull(id); page.blocks = out; sync(); touch(); }
+      if (out !== page.blocks || wasInRow) { page.blocks = out; sync(); touch(); }
     };
     addEventListener('pointermove', move);
     addEventListener('pointerup', up);
@@ -606,7 +640,8 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       const blank = c.textContent === '';
       if (blank && (b.t !== 'p' || ind(b) > 0)) return ind(b) > 0 && (LIST.has(b.t) || b.t === 'p') ? shiftIndent(id, -1) : setType(id, 'p');
       const follow = LIST.has(b.t) ? b.t : 'p';
-      if (!blank && caretAt(c, true)) { insertAt(i, mk(follow, { indent: ind(b) })); return; }
+      const [rowStart, rowEnd] = rowOf(page.blocks, i);
+      if (!blank && caretAt(c, true)) { insertAt(b.row ? rowStart : i, mk(b.row ? 'p' : follow, { indent: ind(b) })); return; }
       const r = getSelection().getRangeAt(0);
       r.deleteContents();
       const rest = document.createRange();
@@ -619,7 +654,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       const html = tmp.textContent === '' ? '' : tmp.innerHTML;
       const nb = b.t === 'toggle' && b.open ? insertAt(i + 1, mk('p', { html, indent: ind(b) + 1 }))
         : b.t === 'toggle' ? insertAt(rangeEnd(page.blocks, i), mk('toggle', { html, indent: ind(b), open: false }))
-          : insertAt(i + 1, mk(follow, { html, indent: ind(b) }));
+          : insertAt(b.row ? rowEnd : i + 1, mk(b.row ? 'p' : follow, { html, indent: ind(b) }));
       place(C(nb.id), false);
       els.get(nb.id).scrollIntoView({ block: 'nearest' });
     } else if (e.key === 'Backspace' && caretAt(c, true)) {

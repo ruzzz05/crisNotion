@@ -83,8 +83,74 @@ export function moveRange(blocks, from, to) {
   const rest = [...blocks.slice(0, from), ...blocks.slice(end)];
   const at = to > from ? to - seg.length : to;
   const delta = Math.min(ind(seg[0]), at > 0 ? ind(rest[at - 1]) + 1 : 0) - ind(seg[0]);
-  const moved = delta ? seg.map(b => ({ ...b, indent: ind(b) + delta })) : seg;
-  return [...rest.slice(0, at), ...moved, ...rest.slice(at)];
+  // Mutate in place: the editor's event handlers hold on to these block objects.
+  if (delta) for (const b of seg) b.indent = ind(b) + delta;
+  return [...rest.slice(0, at), ...seg, ...rest.slice(at)];
+}
+
+// ---------- Columns: consecutive blocks sharing a `row` id are laid out side by side ----------
+
+export const MAX_COLUMNS = 4;
+
+/** [start, end) of the row block `i` sits in; a block outside any row is its own span. */
+export function rowOf(blocks, i) {
+  const id = blocks[i].row;
+  if (!id) return [i, i + 1];
+  let s = i, e = i + 1;
+  while (s > 0 && blocks[s - 1].row === id) s--;
+  while (e < blocks.length && blocks[e].row === id) e++;
+  return [s, e];
+}
+
+/** Where a new block goes when it should land underneath block `i`. */
+export function belowIndex(blocks, i) {
+  return blocks[i].row ? rowOf(blocks, i)[1] : rangeEnd(blocks, i);
+}
+
+/** Drop the `row` of any block that ended up alone. Mutates the blocks. */
+export function normalizeRows(blocks) {
+  for (let i = 0; i < blocks.length;) {
+    const [s, e] = rowOf(blocks, i);
+    if (blocks[i].row && e - s === 1) delete blocks[i].row;
+    i = e;
+  }
+  return blocks;
+}
+
+/** Map of block id -> number of columns, for blocks that share a row. */
+export function rowSizes(blocks) {
+  const out = new Map();
+  for (let i = 0; i < blocks.length;) {
+    const [s, e] = rowOf(blocks, i);
+    if (e - s > 1) for (let j = s; j < e; j++) out.set(blocks[j].id, e - s);
+    i = e;
+  }
+  return out;
+}
+
+/** Put block `from` beside block `target` ('left' or 'right'). Returns the same array when not allowed. */
+export function joinRow(blocks, from, target, side, newRowId) {
+  if (from === target || rangeEnd(blocks, from) !== from + 1) return blocks;
+  const t = blocks[target], b = blocks[from];
+  if (!t.row && rangeEnd(blocks, target) !== target + 1) return blocks;
+  const [s, e] = rowOf(blocks, target);
+  const sameRow = from >= s && from < e;
+  if (!sameRow && e - s >= MAX_COLUMNS) return blocks;
+  t.row = b.row = t.row || newRowId;
+  b.indent = ind(t);
+  const rest = blocks.filter(x => x !== b);
+  const at = rest.indexOf(t) + (side === 'left' ? 0 : 1);
+  return normalizeRows([...rest.slice(0, at), b, ...rest.slice(at)]);
+}
+
+/** Take block `i` out of its row and place it right below. */
+export function leaveRow(blocks, i) {
+  const b = blocks[i];
+  if (!b.row) return blocks;
+  const end = rowOf(blocks, i)[1];
+  delete b.row;
+  const rest = blocks.filter(x => x !== b);
+  return normalizeRows([...rest.slice(0, end - 1), b, ...rest.slice(end - 1)]);
 }
 
 // ---------- Slash menu ----------
