@@ -111,7 +111,13 @@ export function delBlob(id) {
 // Drawings
 export const getDrawing = id => db.get('drawings', id);
 export const putDrawing = d => db.put('drawings', { ...d, updatedAt: Date.now() }).catch(onError);
-export const delDrawing = id => db.del('drawings', id).catch(onError);
+/** Deletes a drawing together with the pictures placed on it. */
+export async function delDrawing(id) {
+  try {
+    for (const m of (await db.get('drawings', id))?.images || []) delBlob(m.blob);
+    await db.del('drawings', id);
+  } catch (e) { onError(e); }
+}
 
 // Backup
 const toDataURL = blob => new Promise((res, rej) => {

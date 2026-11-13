@@ -1,7 +1,8 @@
 import * as S from '../store.js';
 import { h, icon, app, empty, emojiPicker, pop, toast } from '../ui.js';
 import { COLORS, COLOR_NAMES, STARTER_ICONS } from '../util.js';
-import { mountEditor, shrink } from '../editor.js';
+import { mountEditor } from '../editor.js';
+import { shrink } from '../image.js';
 
 const GRADIENTS = ['g1', 'g2', 'g3', 'g4'];
 

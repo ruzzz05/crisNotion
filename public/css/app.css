@@ -298,6 +298,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--b
 .tb.color.on { box-shadow: inset 0 0 0 2px var(--fg); background: none; }
 @media (pointer: coarse) { .tb { min-width: 38px; height: 38px; } }
 .draw-stage { position: relative; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; --u: 1px; --rule: rgba(55, 110, 200, .14); }
+.draw-imgs { position: absolute; inset: 0; overflow: hidden; }
+.draw-img { position: absolute; display: block; max-width: none; pointer-events: none; -webkit-user-drag: none; border-radius: 2px; }
+.draw-img.sel { outline: 2px solid var(--blue); outline-offset: 1px; }
+.draw-img.sel::after { content: ""; }
 .draw-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 .draw-live { cursor: crosshair; }
 .draw-stage.bg-grid { background-image: linear-gradient(var(--rule) 1px, transparent 1px), linear-gradient(90deg, var(--rule) 1px, transparent 1px); background-size: calc(var(--u) * 25) calc(var(--u) * 25); }

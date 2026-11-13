@@ -6,6 +6,7 @@ import { h, icon, app, menu, pop, placeNear, toast } from './ui.js';
 import { COLORS, COLOR_NAMES, esc, tint } from './util.js';
 import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, rangeEnd, rowOf, rowSizes } from './model.js';
 import { mountDrawing } from './drawing.js';
+import { shrink } from './image.js';
 
 const TEXT = new Set(['p', 'h1', 'h2', 'h3', 'bullet', 'num', 'todo', 'toggle', 'quote', 'callout', 'code']);
 const LIST = new Set(['bullet', 'num', 'todo']);
@@ -58,28 +59,6 @@ function sanitize(html) {
   return tpl.innerHTML;
 }
 
-async function shrink(file) {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = new Image();
-    img.src = url;
-    await img.decode();
-    const k = Math.min(1, 1800 / Math.max(img.naturalWidth, img.naturalHeight));
-    const cv = document.createElement('canvas');
-    cv.width = Math.round(img.naturalWidth * k);
-    cv.height = Math.round(img.naturalHeight * k);
-    const ctx = cv.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, cv.width, cv.height);
-    ctx.drawImage(img, 0, 0, cv.width, cv.height);
-    const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.85));
-    if (!blob) throw new Error('toBlob failed');
-    return blob;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-export { shrink };
 
 function place(c, atEnd) {
   c.focus();

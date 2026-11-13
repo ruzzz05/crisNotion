@@ -197,6 +197,37 @@ await section('drawing', async () => {
   check((await drawings())[0] === 3 && r.after > r.before, 'pencil draws while a finger scrolls the page: ' + JSON.stringify(r));
 });
 
+await section('pictures on the drawing sheet', async () => {
+  writeFileSync(`${OUT}/photo.png`, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mNk+M9Qz0AEYBxVSF+FAP5FDvcfRYWgAAAAAElFTkSuQmCC', 'base64'));
+  await page.$eval('.blk[data-t=draw]', e => e.scrollIntoView({ block: 'center' })); await sleep(200);
+  const big = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 600; c.height = 400; const x = c.getContext('2d'); x.fillStyle = '#7fd4a8'; x.fillRect(0, 0, 600, 400); x.fillStyle = '#1f6f4a'; x.fillRect(40, 40, 200, 120); return c.toDataURL('image/png').split(',')[1]; });
+  writeFileSync(`${OUT}/big.png`, Buffer.from(big, 'base64'));
+  await (await page.$('.blk[data-t=draw] input.draw-file')).uploadFile(`${OUT}/big.png`); await sleep(700);
+  const img = () => page.$eval('.draw-img', e => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, loaded: e.naturalWidth > 0 }; });
+  check(await count('.draw-img') === 1 && (await img()).loaded, 'a picture can be inserted into the drawing');
+  check(await page.$eval('.draw-bar [aria-label="Mover imágenes"]', e => e.classList.contains('on')), 'inserting a picture switches to the move tool');
+  const a = await img();
+  await page.mouse.move(a.x + 10, a.y + 10); await page.mouse.down();
+  await page.mouse.move(a.x + 90, a.y + 50, { steps: 6 }); await page.mouse.up(); await sleep(100);
+  const b = await img();
+  check(Math.abs(b.x - a.x - 80) < 3 && Math.abs(b.y - a.y - 40) < 3, 'dragging with the move tool moves the picture: ' + JSON.stringify([b.x - a.x, b.y - a.y]));
+  await page.mouse.move(b.x + b.w - 4, b.y + b.h - 4); await page.mouse.down();
+  await page.mouse.move(b.x + b.w + 56, b.y + b.h + 20, { steps: 6 }); await page.mouse.up(); await sleep(100);
+  const c = await img();
+  check(c.w > b.w + 40 && Math.abs(c.w / c.h - b.w / b.h) < 0.05, 'dragging its corner resizes it keeping the proportions: ' + JSON.stringify([b.w, c.w]));
+  const strokesBefore = (await drawings())[0];
+  await page.click('.draw-bar [aria-label="Bolígrafo"]');
+  await page.mouse.move(c.x + 5, c.y + 5); await page.mouse.down();
+  await page.mouse.move(c.x + c.w - 5, c.y + c.h - 5, { steps: 6 }); await page.mouse.up(); await sleep(600);
+  const d = await img();
+  check((await drawings())[0] === strokesBefore + 1 && Math.abs(d.x - c.x) < 1, 'with the pen you write on top of the picture without moving it');
+  const above = await page.evaluate(() => { const i = document.querySelector('.draw-img'), cv = document.querySelector('.draw-base'); return !!(i.compareDocumentPosition(cv) & Node.DOCUMENT_POSITION_FOLLOWING); });
+  check(above, 'ink is painted above the picture');
+  const saved = await page.evaluate(async () => new Promise(r => { const q = indexedDB.open('cuaderno'); q.onsuccess = () => { const g = q.result.transaction('drawings').objectStore('drawings').getAll(); g.onsuccess = () => r(g.result[0].images?.length); }; }));
+  check(saved === 1, 'the picture is saved with the drawing');
+  await shot('02b-draw-picture');
+});
+
 await section('photo', async () => {
   writeFileSync(`${OUT}/photo.png`, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mNk+M9Qz0AEYBxVSF+FAP5FDvcfRYWgAAAAAElFTkSuQmCC', 'base64'));
   await (await page.$('input.photo-input')).uploadFile(`${OUT}/photo.png`); await sleep(700);
@@ -362,6 +393,7 @@ await section('persistence', async () => {
   check(b.length >= 10 && b[0].text === 'Texto normal' && b.some(x => x.t === 'toggle') && b.some(x => x.t === 'code') && b.some(x => x.t === 'page'), 'blocks are still there after a reload: ' + b.map(x => x.t).join(','));
   check(await count('.blk.in-row') === 2, 'columns survive a reload');
   check((await page.$eval('.scroll', e => getComputedStyle(e).backgroundColor)) === 'rgb(231, 243, 248)', 'page background survives a reload');
+  check(await count('.draw-img') === 1, 'pictures in a drawing survive a reload');
   await sleep(500);
   const inked = await page.evaluate(() => { const c = document.querySelector('.draw-base'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
   check(inked > 1500, 'drawing is repainted after a reload: ' + inked);
@@ -448,7 +480,7 @@ await section('backup', async () => {
     await S.importAll(JSON.parse(json));
     return { docs: data.docs.length, drawings: data.drawings.length, blobs: data.blobs.length };
   });
-  check(rt.docs >= 10 && rt.drawings === 1 && rt.blobs === 1, 'backup exports and re-imports everything: ' + JSON.stringify(rt));
+  check(rt.docs >= 10 && rt.drawings === 1 && rt.blobs === 2, 'backup exports and re-imports everything: ' + JSON.stringify(rt));
 });
 
 await section('dark mode', async () => {
