@@ -62,6 +62,7 @@ export function purge(id) {
     for (const b of d.blocks || []) {
       if (b.t === 'draw') delDrawing(b.id);
       if (b.t === 'image') delBlob(b.blob);
+      if (b.t === 'pdf') { delBlob(b.blob); for (let n = 1; n <= (b.n || 0); n++) delDrawing(`${b.id}:${n}`); }
     }
     if (d.cover?.startsWith('img:')) delBlob(d.cover.slice(4));
     if (d.bg?.startsWith('img:')) delBlob(d.bg.slice(4));
@@ -103,6 +104,7 @@ export async function blobURL(id) {
   urls.set(id, url);
   return url;
 }
+export const getBlob = async id => (await db.get('blobs', id).catch(() => null))?.blob || null;
 export function delBlob(id) {
   if (urls.has(id)) { URL.revokeObjectURL(urls.get(id)); urls.delete(id); }
   db.del('blobs', id).catch(onError);
@@ -140,7 +142,7 @@ export async function importAll(data) {
   for (const d of list) { docs.set(d.id, d); await db.put('docs', d); }
   for (const d of data.drawings || []) if (d?.id) await db.put('drawings', d);
   for (const b of data.blobs || []) {
-    if (!b?.id || typeof b.data !== 'string' || !b.data.startsWith('data:image/')) continue;
+    if (!b?.id || typeof b.data !== 'string' || !/^data:(image[/]|application[/]pdf)/.test(b.data)) continue;
     await db.put('blobs', { id: b.id, blob: await (await fetch(b.data)).blob() });
   }
 }

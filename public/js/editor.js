@@ -7,6 +7,7 @@ import { COLORS, COLOR_NAMES, esc, tint } from './util.js';
 import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, rangeEnd, rowOf, rowSizes } from './model.js';
 import { mountDrawing } from './drawing.js';
 import { shrink } from './image.js';
+import { mountPdf, pageInkId } from './pdf.js';
 
 const TEXT = new Set(['p', 'h1', 'h2', 'h3', 'bullet', 'num', 'todo', 'toggle', 'quote', 'callout', 'code']);
 const LIST = new Set(['bullet', 'num', 'todo']);
@@ -26,6 +27,7 @@ export const COMMANDS = [
   { t: 'code', label: 'Código', desc: 'Un fragmento de código.', glyph: '</>', keys: 'code codigo' },
   { t: 'image', label: 'Imagen', desc: 'Sube una foto o hazla con la cámara.', glyph: '🖼️', keys: 'image foto photo camara' },
   { t: 'draw', label: 'Dibujo a mano', desc: 'Escribe o dibuja con el lápiz.', glyph: '✏️', keys: 'draw lapiz pencil apuntes' },
+  { t: 'pdf', label: 'PDF', desc: 'Sube un PDF para subrayarlo y anotarlo.', glyph: '📑', keys: 'documento archivo fichero' },
 ];
 const LABEL = Object.fromEntries(COMMANDS.map(c => [c.t, c.label]));
 const PLACEHOLDER = {
@@ -140,6 +142,10 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       const host = h('div', { class: 'draw' });
       el.append(host);
       cleanups.set(b.id, mountDrawing(host, b, touch));
+    } else if (b.t === 'pdf') {
+      const host = h('div', { class: 'pdf' });
+      el.append(host);
+      cleanups.set(b.id, mountPdf(host, b, touch));
     } else if (b.t === 'page') {
       const p = S.livePage(b.pageId);
       el.append(h('button', { class: 'page-link' + (p ? '' : ' gone'), type: 'button', disabled: !p, onclick: () => { flush(); app.go('page/' + b.pageId); } },
@@ -197,7 +203,9 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     const i = I(id);
     if (i < 0) return;
     const b = page.blocks[i];
-    if (b.t === 'draw') { cleanups.get(id)?.(); cleanups.delete(id); S.delDrawing(id); }
+    if (b.t === 'draw' || b.t === 'pdf') { cleanups.get(id)?.(); cleanups.delete(id); }
+    if (b.t === 'draw') S.delDrawing(id);
+    if (b.t === 'pdf') { S.delBlob(b.blob); for (let n = 1; n <= (b.n || 0); n++) S.delDrawing(pageInkId(id, n)); }
     if (b.t === 'image' && !page.blocks.some(x => x !== b && x.blob === b.blob)) S.delBlob(b.blob);
     if (b.t === 'page' && S.livePage(b.pageId)) S.trash(b.pageId);
     page.blocks.splice(i, 1);
@@ -241,7 +249,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
   function apply(t, id) {
     const b = B(id) || page.blocks.at(-1);
     const blank = TEXT.has(b.t) && isEmpty(b.id);
-    if (t === 'image') { imageAfter = { id: b.id, replace: blank && b.t === 'p' }; picker.click(); return; }
+    if (t === 'image' || t === 'pdf') { imageAfter = { id: b.id, replace: blank && b.t === 'p' }; (t === 'pdf' ? pdfPicker : picker).click(); return; }
     if (TEXT.has(t)) {
       if (blank) return setType(b.id, t);
       const nb = insertAt(belowIndex(page.blocks, I(b.id)), mk(t, { indent: ind(b), ...(t === 'toggle' ? { open: true } : {}) }));
@@ -285,6 +293,23 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     els.get(after)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 
+  async function addPdf(file) {
+    const after = imageAfter?.id && B(imageAfter.id) ? imageAfter.id : current && B(current) ? current : page.blocks.at(-1).id;
+    const replace = imageAfter?.replace && B(imageAfter.id) ? imageAfter.id : null;
+    imageAfter = null;
+    if (file.type !== 'application/pdf' && !/[.]pdf$/i.test(file.name)) return toast('Ese archivo no es un PDF.');
+    if (file.size > 80 * 1024 * 1024) return toast('Ese PDF es demasiado grande (más de 80 MB).');
+    try {
+      const nb = { id: S.uid(), t: 'pdf', blob: await S.saveBlob(file), name: file.name, indent: 0 };
+      insertAt(belowIndex(page.blocks, I(after)), nb);
+      if (replace) removeBlock(replace);
+      els.get(nb.id)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    } catch (err) {
+      console.error(err);
+      toast('No se ha podido guardar el PDF.');
+    }
+  }
+
   function duplicate(id) {
     const i = I(id), b = page.blocks[i];
     pull(id);
@@ -314,7 +339,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     };
     menu(anchor, [
       { label: 'Eliminar', icon: 'trash', danger: true, fn: () => { const end = rangeEnd(page.blocks, i); for (const x of page.blocks.slice(i, end).reverse()) removeBlock(x.id); } },
-      b.t !== 'page' && { label: 'Duplicar', icon: 'copy', fn: () => duplicate(id) },
+      b.t !== 'page' && b.t !== 'pdf' && { label: 'Duplicar', icon: 'copy', fn: () => duplicate(id) },
       TEXT.has(b.t) && { label: 'Convertir en', icon: 'swap', sub: COMMANDS.filter(c => TEXT.has(c.t)).map(c => ({ label: c.label, on: b.t === c.t, fn: () => setType(id, c.t) })) },
       TEXT.has(b.t) && {
         label: 'Color', icon: 'palette', sub: [
@@ -556,6 +581,11 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     onchange: () => { const files = [...picker.files]; picker.value = ''; if (files.length) addImages(files); },
   });
 
+  const pdfPicker = h('input', {
+    class: 'pdf-input', type: 'file', accept: 'application/pdf,.pdf', hidden: true,
+    onchange: () => { const f = pdfPicker.files[0]; pdfPicker.value = ''; if (f) addPdf(f); },
+  });
+
   const title = h('h1', { class: 'page-title', contenteditable: 'plaintext-only', 'data-ph': 'Sin título', role: 'textbox', 'aria-label': 'Título de la página' });
   title.textContent = page.title || '';
   if (title.contentEditable !== 'plaintext-only') title.contentEditable = 'true';
@@ -584,7 +614,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       place(C((lastB.t === 'p' && isEmpty(lastB.id) ? lastB : insertAt(page.blocks.length, mk('p'))).id), true);
     },
   });
-  root.append(title, list, line, tail, picker);
+  root.append(title, list, line, tail, picker, pdfPicker);
   sync();
 
   list.addEventListener('focusin', e => { const bl = e.target.closest('.blk'); if (bl) current = bl.dataset.id; });

@@ -10,6 +10,7 @@
     "test:e2e": "node tests/e2e.mjs"
   },
   "devDependencies": {
+    "pdfjs-dist": "^6.5.438",
     "puppeteer-core": "^25.17.0"
   }
 }

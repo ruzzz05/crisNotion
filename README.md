@@ -8,8 +8,11 @@ PWA de apuntes para iPhone y iPad: un Notion reducido a lo que hace falta en cla
 - **Pestañas** como en un navegador: cada una recuerda su página o vista.
 - **Editor por bloques:** texto, títulos, listas anidadas, tareas, desplegables, citas, destacados, código, divisor, imagen, dibujo y subpágina.
   Menú `/` con filtro, atajos (`# `, `- `, `[] `, `1. `, `> `, `" `, `---`, tres acentos graves), Tab para anidar, arrastre para reordenar, color por bloque y burbuja de formato al seleccionar.
+- **Columnas:** arrastra un bloque al lateral de otro (o usa su menú) para poner dos imágenes juntas o una imagen con texto al lado.
+- **PDF anotable:** sube un PDF a una página y subraya o escribe encima de cada hoja.
+- **Fondo de página** a elegir: color o imagen; beige por defecto.
 - **Icono y portada** por página, favoritos, migas de pan, búsqueda rápida con Ctrl/Cmd+K y papelera.
-- **Dibujo a mano** con Apple Pencil (presión, subrayador, goma, deshacer). Cuando detecta el lápiz, el dedo desplaza la página en vez de pintar.
+- **Dibujo a mano** con Apple Pencil o ratón (presión, subrayador, goma, deshacer). El dedo nunca dibuja: desplaza la página. Se pueden insertar imágenes en el dibujo, moverlas, cambiarles el tamaño y escribir encima.
 - **Fotos** desde la cámara o la galería, reducidas y guardadas en el dispositivo.
 - **Horario** semanal, **calendario** mensual de exámenes y entregas, y **tareas**.
 - En pantallas táctiles, barra de herramientas sobre el teclado.
@@ -36,7 +39,8 @@ Para instalarla en iPhone o iPad hace falta servirla por HTTPS, abrirla en Safar
 | `public/js/store.js`, `db.js` | Datos en memoria con escritura en IndexedDB |
 | `public/js/app.js` | Barra lateral, pestañas, migas de pan y búsqueda |
 | `public/js/editor.js` | Editor por bloques |
-| `public/js/drawing.js` | Lienzo de dibujo vectorial |
+| `public/js/drawing.js`, `sheet.js` | Lienzo de dibujo vectorial e imágenes sobre él |
+| `public/js/pdf.js`, `public/vendor/pdfjs/` | Bloque PDF; pdf.js de Mozilla (Apache-2.0) incluido para funcionar sin conexión |
 | `public/js/views/` | Una pantalla por archivo |
 | `public/sw.js` | Service worker (red primero, caché de respaldo) |
 | `tests/` | Pruebas unitarias y de extremo a extremo |

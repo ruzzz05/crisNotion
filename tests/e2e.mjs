@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { makePdf } from './pdf-fixture.mjs';
 
 const OUT = process.env.SHOTS || mkdtempSync(join(tmpdir(), 'cuaderno-e2e-'));
 mkdirSync(OUT, { recursive: true });
@@ -234,6 +235,31 @@ await section('photo', async () => {
   check(await page.evaluate(() => { const i = document.querySelector('.blk[data-t=image] img'); return !!i && i.src.startsWith('blob:') && i.naturalWidth > 0; }), 'photo block shows the picture');
 });
 
+const pdfInk = () => page.evaluate(async () => new Promise(r => { const q = indexedDB.open('cuaderno'); q.onsuccess = () => { const g = q.result.transaction('drawings').objectStore('drawings').getAll(); g.onsuccess = () => r(g.result.filter(d => /:[0-9]+$/.test(d.id)).map(d => d.id.split(':')[1] + '=' + d.strokes.length)); }; }));
+const waitFor = async (fn, ms = 8000) => { for (const end = Date.now() + ms; Date.now() < end;) { if (await fn()) return true; await sleep(150); } return false; };
+
+await section('pdf', async () => {
+  writeFileSync(`${OUT}/apuntes.pdf`, makePdf(2), 'latin1');
+  await page.click('.page-tail'); await sleep(80);
+  await type('/pdf'); await sleep(150);
+  check((await texts('.slash-item .slash-label')).join() === 'PDF', 'the block menu offers PDF');
+  await press('Escape'); for (let i = 0; i < 4; i++) await press('Backspace');
+  await (await page.$('input.pdf-input')).uploadFile(`${OUT}/apuntes.pdf`);
+  check(await waitFor(async () => await count('.blk[data-t=pdf] .pdf-page') === 2), 'an uploaded PDF shows one sheet per page');
+  check((await text('.pdf-name')).includes('apuntes.pdf'), 'the PDF block shows the file name');
+  await page.$eval('.pdf-page', e => e.scrollIntoView({ block: 'start' })); await sleep(200);
+  const painted = () => page.$eval('.pdf-canvas', c => { if (!c.width) return false; const x = c.getContext('2d'), k = c.width / 595, d = x.getImageData(Math.round(200 * k), Math.round((842 - 660) * k), 1, 1).data; return d[2] > 150 && d[0] < 120; });
+  check(await waitFor(painted), 'the PDF page itself is rendered');
+  await page.click('.blk[data-t=pdf] .draw-bar [aria-label="Subrayador"]');
+  const box = await (await page.$('.pdf-page .draw-live')).boundingBox();
+  await page.mouse.move(box.x + 60, box.y + 260); await page.mouse.down();
+  await page.mouse.move(box.x + 320, box.y + 264, { steps: 8 }); await page.mouse.up(); await sleep(700);
+  check((await pdfInk()).join() === '1=1', 'highlighting on a PDF page is saved for that page: ' + (await pdfInk()).join());
+  check(await page.$eval('.blk[data-t=pdf] .draw-bar', e => getComputedStyle(e).position === 'sticky'), 'the PDF tools stay in view while scrolling its pages');
+  await page.click('.blk[data-t=pdf] .draw-bar [aria-label="Bolígrafo"]');
+  await shot('02c-pdf');
+});
+
 await section('subpages', async () => {
   await page.click('.page-tail'); await sleep(80);
   await type('/pagina'); await sleep(120); await press('Enter'); await sleep(300);
@@ -353,6 +379,8 @@ await section('columns', async () => {
   check(await visible('.drop-line.v'), 'dragging to the side of a block shows an upright line');
   await page.mouse.up(); await sleep(150);
   check(await beside(), 'dropping on the side of a block makes two columns');
+  const ta = await box('Texto normal'), tb = await box('Derivadas');
+  check(Math.abs(ta.t - tb.t) < 6, 'columns line up at the top: ' + (tb.t - ta.t));
   await shot('04b-columns');
 });
 
@@ -394,6 +422,7 @@ await section('persistence', async () => {
   check(await count('.blk.in-row') === 2, 'columns survive a reload');
   check((await page.$eval('.scroll', e => getComputedStyle(e).backgroundColor)) === 'rgb(231, 243, 248)', 'page background survives a reload');
   check(await count('.draw-img') === 1, 'pictures in a drawing survive a reload');
+  check(await waitFor(async () => await count('.pdf-page') === 2) && (await pdfInk()).join() === '1=1', 'the PDF and its annotations survive a reload');
   await sleep(500);
   const inked = await page.evaluate(() => { const c = document.querySelector('.draw-base'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
   check(inked > 1500, 'drawing is repainted after a reload: ' + inked);
@@ -480,7 +509,7 @@ await section('backup', async () => {
     await S.importAll(JSON.parse(json));
     return { docs: data.docs.length, drawings: data.drawings.length, blobs: data.blobs.length };
   });
-  check(rt.docs >= 10 && rt.drawings === 1 && rt.blobs === 2, 'backup exports and re-imports everything: ' + JSON.stringify(rt));
+  check(rt.docs >= 10 && rt.drawings === 2 && rt.blobs === 3, 'backup exports and re-imports everything: ' + JSON.stringify(rt));
 });
 
 await section('dark mode', async () => {

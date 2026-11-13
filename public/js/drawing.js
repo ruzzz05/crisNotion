@@ -17,10 +17,14 @@ const BGS = ['grid', 'lines', 'plain'];
 const BG_LABEL = { grid: 'Cuadrícula', lines: 'Rayas', plain: 'Liso' };
 
 const dark = matchMedia('(prefers-color-scheme: dark)');
-const palette = () => ({
-  ink: dark.matches ? '#E6E6E4' : '#37352F', blue: dark.matches ? '#5B9DF0' : '#2383E2', red: '#E5484D',
-  green: '#2F9E44', orange: '#F08C00', purple: dark.matches ? '#A78BFA' : '#7048E8', yellow: '#FFD43B',
-});
+/** `light` forces the light-theme inks, for surfaces that are always white such as PDF pages. */
+const palette = (light = false) => {
+  const d = !light && dark.matches;
+  return {
+    ink: d ? '#E6E6E4' : '#37352F', blue: d ? '#5B9DF0' : '#2383E2', red: '#E5484D',
+    green: '#2F9E44', orange: '#F08C00', purple: d ? '#A78BFA' : '#7048E8', yellow: '#FFD43B',
+  };
+};
 
 // Tool choice is shared by every sheet and remembered between visits.
 const prefs = { tool: 'pen', color: 'ink', size: 4 };
@@ -112,9 +116,10 @@ export function mountToolbar(bar, { sheet = () => null, images = false, extra = 
  * opts.id            – key of the stored drawing
  * opts.height()      – sheet height in units; opts.setHeight(h) present = the sheet can grow
  * opts.images        – allow pictures under the ink
+ * opts.light         – always use light-theme ink colours
  * opts.onActive(api) – called when the sheet is drawn on (lets a shared toolbar target it)
  */
-export function mountSheet(stage, { id, height, setHeight = null, images: allowImages = false, onActive = () => {} }) {
+export function mountSheet(stage, { id, height, setHeight = null, images: allowImages = false, light = false, onActive = () => {} }) {
   let strokes = [], undo = [], redo = [], images = [], selected = null;
   let cur = null, pid = null, pan = null, erasing = false, erased = false, drag = null, rect = null;
   let scale = 1, width = 0, saveTimer = 0, dead = false;
@@ -128,7 +133,7 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
   const imgEls = new Map();
 
   function redraw() {
-    const colors = palette();
+    const colors = palette(light);
     bctx.setTransform(1, 0, 0, 1, 0, 0);
     bctx.clearRect(0, 0, base.width, base.height);
     const k = scale * (devicePixelRatio || 1);
@@ -142,7 +147,7 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
     if (!cur) return;
     const k = scale * (devicePixelRatio || 1);
     lctx.setTransform(k, 0, 0, k, 0, 0);
-    paint(lctx, cur, palette());
+    paint(lctx, cur, palette(light));
   }
 
   /** Create, position and remove <img> elements to match `images`. */
@@ -267,7 +272,7 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
     drawLive();
     const k = scale * (devicePixelRatio || 1);
     bctx.setTransform(k, 0, 0, k, 0, 0);
-    paint(bctx, s, palette());
+    paint(bctx, s, palette(light));
     persist();
     // Grow the sheet when writing reaches the bottom, like turning to a longer page.
     let maxY = 0;
