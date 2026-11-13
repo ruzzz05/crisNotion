@@ -167,6 +167,20 @@ await section('drawing', async () => {
   await page.click('.draw-bar [aria-label="Deshacer"]'); await sleep(600);
   check((await drawings())[0] === 2, 'undo brings it back');
   await page.click('.draw-bar [aria-label="Bolígrafo"]');
+  const finger = await page.evaluate(() => {
+    const live = document.querySelector('.draw-live'), q = live.getBoundingClientRect(), view = document.querySelector('.scroll');
+    const ev = (type, o) => live.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 5, pointerType: 'touch', button: 0, ...o }));
+    const before = view.scrollTop;
+    ev('pointerdown', { clientX: q.left + 300, clientY: q.top + 200 });
+    ev('pointermove', { clientX: q.left + 320, clientY: q.top + 150 });
+    ev('pointerup', { clientX: q.left + 320, clientY: q.top + 150 });
+    const moved = view.scrollTop - before;
+    view.scrollTop = before;
+    return { moved, handButton: !!document.querySelector('.draw-bar [aria-label*="dedo"]') };
+  });
+  await sleep(600);
+  check((await drawings())[0] === 2 && finger.moved > 0, 'a finger never draws, even before any pencil was used; it scrolls: ' + JSON.stringify(finger));
+  check(!finger.handButton, 'there is no option to draw with a finger');
   const r = await page.evaluate(() => {
     const live = document.querySelector('.draw-live'), q = live.getBoundingClientRect(), view = document.querySelector('.scroll');
     const ev = (type, o) => live.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, ...o }));

@@ -1,6 +1,6 @@
 // Handwriting block. Strokes are stored as vectors in a 1000-unit-wide coordinate space,
 // so a drawing made on an iPad scales cleanly to an iPhone and to any pixel density.
-// Apple Pencil: pressure sets line width; once a pencil is seen, fingers scroll instead of drawing.
+// Only a pencil or a mouse draws (pencil pressure sets line width). Fingers always scroll the page.
 import * as S from './store.js';
 import { h, icon } from './ui.js';
 
@@ -17,7 +17,7 @@ const palette = () => ({
 });
 
 // Tool choice is shared by every drawing and remembered between visits.
-const prefs = { tool: 'pen', color: 'ink', size: 4, penOnly: false };
+const prefs = { tool: 'pen', color: 'ink', size: 4 };
 try { Object.assign(prefs, JSON.parse(localStorage.getItem('cuaderno:draw') || '{}')); } catch { /* storage blocked */ }
 const remember = () => { try { localStorage.setItem('cuaderno:draw', JSON.stringify(prefs)); } catch { /* storage blocked */ } };
 
@@ -94,9 +94,7 @@ export function mountDrawing(host, block, changed) {
         stage.classList.add('bg-' + block.bg);
         changed(); drawBar();
       }),
-      btn('Más espacio para dibujar', icon('grow'), () => { block.h += 300; changed(); fit(true); }),
-      btn(prefs.penOnly ? 'Solo dibuja el lápiz; el dedo desplaza la página' : 'El dedo también dibuja', icon('hand'),
-        () => { prefs.penOnly = !prefs.penOnly; remember(); drawBar(); }, !prefs.penOnly));
+      btn('Más espacio para dibujar', icon('grow'), () => { block.h += 300; changed(); fit(true); }));
   }
 
   function redraw() {
@@ -161,11 +159,10 @@ export function mountDrawing(host, block, changed) {
   }
 
   live.addEventListener('pointerdown', e => {
-    if (e.pointerType === 'pen' && !prefs.penOnly) { prefs.penOnly = true; remember(); drawBar(); }
     if (cur || erasing || pan) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     try { live.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
-    if (e.pointerType === 'touch' && prefs.penOnly) { pan = { id: e.pointerId, y: e.clientY }; return; }
+    if (e.pointerType === 'touch') { pan = { id: e.pointerId, y: e.clientY }; return; }
     e.preventDefault();
     rect = live.getBoundingClientRect();
     pid = e.pointerId;
