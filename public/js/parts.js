@@ -1,9 +1,11 @@
 // Pieces shared by several views: event and task rows and their forms.
 import * as S from './store.js';
 import { h, icon, app, openForm } from './ui.js';
-import { relDay, tint, ymd } from './util.js';
+import { COLORS, COLOR_NAMES, relDay, tint, ymd } from './util.js';
 
-export const KINDS = { examen: ['Examen', 'red'], entrega: ['Entrega', 'orange'], evento: ['Evento', 'blue'] };
+export const KINDS = { examen: ['Examen', 'red'], entrega: ['Entrega', 'orange'], evento: ['Evento', 'blue'], festivo: ['Festivo', 'orange'] };
+/** The colour a holiday gives its whole day: the one chosen in its form, light orange at first. */
+export const dayColor = e => (COLORS.includes(e.dayColor) ? e.dayColor : 'orange');
 
 export const subjectName = s => `${s.icon ? s.icon + ' ' : ''}${s.title || 'Sin título'}`;
 
@@ -24,8 +26,9 @@ export function eventForm(ev = {}) {
     { key: 'title', label: 'Título', required: true, value: ev.title, placeholder: 'Examen del tema 4' },
     { key: 'kind', label: 'Tipo', type: 'select', value: ev.kind || 'examen', options: Object.entries(KINDS).map(([k, v]) => [k, v[0]]) },
     { key: 'date', label: 'Fecha', type: 'date', required: true, value: ev.date || ymd(new Date()) },
-    { key: 'time', label: 'Hora (opcional)', type: 'time', value: ev.time },
-    { key: 'subjectId', label: 'Asignatura', type: 'select', value: ev.subjectId, options: subjectOptions() },
+    { key: 'dayColor', label: 'Color del día', type: 'select', value: dayColor(ev), options: COLORS.map(c => [c, COLOR_NAMES[c].replace(/^./, x => x.toUpperCase())]), when: v => v.kind === 'festivo' },
+    { key: 'time', label: 'Hora (opcional)', type: 'time', value: ev.time, when: v => v.kind !== 'festivo' },
+    { key: 'subjectId', label: 'Asignatura', type: 'select', value: ev.subjectId, options: subjectOptions(), when: v => v.kind !== 'festivo' },
     { key: 'notes', label: 'Notas', type: 'textarea', value: ev.notes },
   ], {
     focus: !ev.id,

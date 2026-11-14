@@ -619,6 +619,21 @@ await section('calendar and tasks', async () => {
   check((await texts('.cal-ev')).some(t => t.includes('Examen de derivadas')), 'events show inside the month grid');
   check((await texts('.cal-cell.today .cal-ev')).length >= 1, 'today is marked and holds its event');
   await shot('07-calendar');
+  // Festivo: no subject or time, and the whole day takes a colour.
+  await clickText('.view-actions button', 'Nuevo');
+  const vis = label => page.evaluate(l => { const f = [...document.querySelectorAll('.modal .field')].find(x => x.textContent.startsWith(l)); return !!f && f.offsetParent !== null; }, label);
+  check(await vis('Asignatura') && await vis('Hora') && !(await vis('Color del día')), 'a normal event asks for subject and time, not for a day colour');
+  await page.evaluate(() => { const s = document.querySelectorAll('.modal form select')[0]; s.value = 'festivo'; s.dispatchEvent(new Event('change', { bubbles: true })); });
+  await sleep(100);
+  check(!(await vis('Asignatura')) && !(await vis('Hora')) && await vis('Color del día'), 'a holiday hides subject and time and offers a day colour');
+  await page.evaluate(() => { const f = document.querySelector('.modal form'); f.querySelector('input[type=text]').value = 'Día del Pilar'; const d = new Date(); d.setDate(d.getDate() + 1); f.querySelector('input[type=date]').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
+  await clickText('.modal button', 'Guardar'); await sleep(200);
+  const holiday = () => page.evaluate(() => { const c = [...document.querySelectorAll('.cal-cell.holiday')]; return c.map(x => getComputedStyle(x).backgroundColor); });
+  check((await holiday()).join() === 'rgb(251, 236, 221)', 'the day of a holiday is light orange: ' + await holiday());
+  await clickText('.cal-cell.holiday .cal-ev', 'Pilar'); await sleep(150);
+  await page.evaluate(() => { const s = [...document.querySelectorAll('.modal .field')].find(x => x.textContent.startsWith('Color del día')).querySelector('select'); s.value = 'green'; });
+  await clickText('.modal button', 'Guardar'); await sleep(200);
+  check((await holiday()).join() === 'rgb(237, 243, 236)', 'the holiday colour can be changed: ' + await holiday());
   await clickText('.side-item', 'Tareas'); await sleep(200);
   for (const t of ['Ejercicios 3 y 4', 'Leer capítulo 2']) { await page.click('.quick input'); await type(t, true); await sleep(100); }
   check(await count('.task') === 2, 'tasks are added with Enter');

@@ -1,7 +1,7 @@
 import * as S from '../store.js';
 import { h, icon, iconBtn, app, viewHead } from '../ui.js';
 import { DAYS, DAYS_SHORT, cap, dow, fmtLong, tint, ymd } from '../util.js';
-import { KINDS, eventForm, taskForm, byDate } from '../parts.js';
+import { KINDS, dayColor, eventForm, taskForm, byDate } from '../parts.js';
 
 let month = null; // first day of the month on screen
 
@@ -9,7 +9,8 @@ export function calendar(root) {
   const today = ymd(new Date());
   month ??= new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
-  const marks = {};
+  const marks = {}, holidays = {};
+  for (const e of S.all('event').sort(byDate)) if (e.kind === 'festivo') holidays[e.date] ??= dayColor(e);
   for (const e of S.all('event').sort(byDate)) (marks[e.date] ??= []).push({ label: (e.time ? e.time + ' ' : '') + e.title, color: (KINDS[e.kind] || KINDS.evento)[1], open: () => eventForm(e) });
   for (const t of S.all('task')) if (t.due && !t.done) (marks[t.due] ??= []).push({ label: '☐ ' + t.title, color: 'gray', open: () => taskForm(t) });
 
@@ -23,7 +24,8 @@ export function calendar(root) {
     const key = ymd(d);
     const list = marks[key] || [];
     const cell = h('div', {
-      class: 'cal-cell' + (d.getMonth() !== month.getMonth() ? ' out' : '') + (key === today ? ' today' : '') + (i % 7 > 4 ? ' weekend' : ''),
+      class: 'cal-cell' + (d.getMonth() !== month.getMonth() ? ' out' : '') + (key === today ? ' today' : '') + (i % 7 > 4 ? ' weekend' : '') + (holidays[key] ? ' holiday' : ''),
+      style: holidays[key] ? `--day:var(--b-${holidays[key]})` : null,
       role: 'button', tabindex: '0', 'aria-label': `${fmtLong(d)}: añadir evento`,
       onclick: e => { if (!e.target.closest('.cal-ev')) eventForm({ date: key }); },
       onkeydown: e => { if (e.key === 'Enter' && e.target === cell) eventForm({ date: key }); },

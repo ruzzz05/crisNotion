@@ -527,6 +527,7 @@ select.photo-every { width: auto; min-height: 30px; padding-top: 2px; padding-bo
 .cal-cell { min-height: 112px; padding: 4px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); overflow: hidden; cursor: pointer; }
 .cal-cell:hover { background: var(--hover); }
 .cal-cell.weekend { background: var(--side); }
+.cal-cell.holiday, .cal-cell.holiday:hover { background: var(--day); }
 .cal-cell.out .cal-num { color: var(--fg3); }
 .cal-num { align-self: flex-end; min-width: 24px; height: 24px; padding: 0 5px; display: grid; place-items: center; border-radius: 12px; font-size: .8125rem; white-space: nowrap; }
 .cal-cell.today .cal-num { background: var(--red); color: #fff; font-weight: 600; }

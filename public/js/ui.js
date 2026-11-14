@@ -185,12 +185,12 @@ export function confirmDialog(text, okLabel = 'Eliminar') {
  */
 export function openForm(title, fields, { onSave, onDelete, deleteText = '¿Eliminar?', saveLabel = 'Guardar', focus = false } = {}) {
   modal(title, (body, close) => {
-    const read = {};
+    const read = {}, conditional = [];
     const form = h('form', {
       class: 'form', onsubmit: e => {
         e.preventDefault();
         const v = {};
-        for (const f of fields) v[f.key] = read[f.key]();
+        for (const f of fields) v[f.key] = f.when && !f.when(Object.fromEntries(fields.map(g => [g.key, read[g.key]?.()]))) ? '' : read[f.key]();
         const err = onSave(v);
         if (typeof err === 'string') return toast(err);
         close(); app.refresh();
@@ -202,8 +202,14 @@ export function openForm(title, fields, { onSave, onDelete, deleteText = '¿Elim
       else if (f.type === 'textarea') el = h('textarea', { rows: 3, placeholder: f.placeholder, value: f.value ?? '' });
       else el = h('input', { type: f.type || 'text', required: f.required, placeholder: f.placeholder, value: f.value ?? '', autocomplete: 'off' });
       read[f.key] = () => el.value.trim();
-      form.append(h('label', { class: 'field' }, h('span', null, f.label), el));
+      const label = h('label', { class: 'field' }, h('span', null, f.label), el);
+      if (f.when) conditional.push(() => { label.hidden = !f.when(Object.fromEntries(fields.map(g => [g.key, read[g.key]?.()]))); });
+      form.append(label);
     }
+    // A field with `when(values)` is only shown while that holds; hidden ones are saved empty.
+    const refresh = () => { for (const fn of conditional) fn(); };
+    form.addEventListener('input', refresh); form.addEventListener('change', refresh);
+    refresh();
     form.append(h('div', { class: 'form-actions' },
       onDelete && h('button', {
         type: 'button', class: 'btn danger',
