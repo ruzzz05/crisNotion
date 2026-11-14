@@ -2,18 +2,20 @@
 // place, resized from its corner or removed, and new ones added; the grid packs them as they change.
 // The layout is one stored doc ('home'), so it follows the account to other devices.
 import * as S from '../store.js';
-import { h, icon, menu, toast } from '../ui.js';
+import { h, icon, menu, pop, toast } from '../ui.js';
 import { COLS, TINTS, WIDGET_SIZES, moveItem, newItem, normalizeHome, spanFor, widgetTint } from '../board.js';
-import { COLOR_NAMES } from '../util.js';
+import { COLORS, COLOR_NAMES } from '../util.js';
 import { WIDGETS, photoStore } from '../widgets.js';
 import { shrink } from '../image.js';
 
 let editing = false; // survives re-renders of the view
+const GRADIENTS = ['g1', 'g2', 'g3', 'g4'];
 
 export function home(root) {
   const stored = S.get('home');
   let items = normalizeHome(stored?.items, S.uid);
-  const save = () => { S.put({ ...(S.get('home') || { id: 'home', type: 'home' }), items }); };
+  let cover = stored?.cover || null; // 'c:<colour or gradient>' or 'img:<blob id>', like the cover of a page
+  const save = () => { S.put({ ...(S.get('home') || { id: 'home', type: 'home' }), items, cover }); };
   const live = new Map(); // item id -> {el, destroy}
   const grid = h('div', { class: 'home-grid', style: `--cols:${COLS}` });
 
@@ -138,6 +140,38 @@ export function home(root) {
     grip.addEventListener('pointercancel', up);
   }
 
+  // ---------- Cover ----------
+
+  const coverSlot = h('div', { class: 'home-cover-slot' });
+  function drawCover() {
+    coverSlot.replaceChildren();
+    if (!cover) return;
+    const el = h('div', { class: 'page-cover home-cover' + (cover.startsWith('c:') ? ' cover-' + cover.slice(2) : '') });
+    if (cover.startsWith('img:')) S.blobURL(cover.slice(4)).then(u => { if (u) el.style.backgroundImage = `url("${u}")`; });
+    coverSlot.append(el);
+  }
+  function setCover(v) {
+    if (cover?.startsWith('img:') && cover !== v) S.delBlob(cover.slice(4));
+    cover = v;
+    save();
+    drawCover();
+    drawBar();
+  }
+  const coverFile = h('input', {
+    class: 'home-cover-input', type: 'file', accept: 'image/*', hidden: true, onchange: async () => {
+      const f = coverFile.files[0];
+      coverFile.value = '';
+      if (!f) return;
+      try { setCover('img:' + await S.saveBlob(await shrink(f))); } catch (e) { console.error(e); toast('No se ha podido usar esa imagen.'); }
+    },
+  });
+  const coverPicker = anchor => pop(anchor, (box, close) => {
+    box.append(
+      h('div', { class: 'pop-head' }, h('span', null, 'Portada de Inicio'), cover && h('button', { class: 'tbtn', type: 'button', onclick: () => { close(); setCover(null); } }, 'Quitar')),
+      h('div', { class: 'cover-grid' }, [...GRADIENTS, ...COLORS].map(c => h('button', { type: 'button', class: 'cover-sw cover-' + c, 'aria-label': 'Portada ' + c, onclick: () => { close(); setCover('c:' + c); } }))),
+      h('button', { class: 'menu-item', type: 'button', onclick: () => { close(); coverFile.click(); } }, icon('image'), 'Subir una imagen'));
+  }, 'cover-pop');
+
   // ---------- Toolbar ----------
 
   const file = h('input', {
@@ -156,6 +190,7 @@ export function home(root) {
     root.classList.toggle('editing', editing);
     bar.replaceChildren(...[
       editing && h('span', { class: 'muted home-hint' }, 'Arrastra un widget para moverlo y su esquina para cambiar el tamaño.'),
+      editing && h('button', { class: 'btn home-cover-btn', type: 'button', onclick: e => coverPicker(e.currentTarget) }, icon('image'), cover ? 'Cambiar portada' : 'Añadir portada'),
       editing && h('button', { class: 'btn home-add', type: 'button', onclick: e => addMenu(e.currentTarget) }, icon('plus'), 'Añadir widget'),
       h('button', { class: 'btn home-edit' + (editing ? ' primary' : ''), type: 'button', onclick: () => { editing = !editing; drawBar(); } }, editing ? 'Listo' : 'Editar'),
     ].filter(Boolean));
@@ -164,6 +199,7 @@ export function home(root) {
   root.classList.add('home');
   drawBar();
   for (const it of items) grid.append(mount(it));
-  root.append(bar, grid, file);
+  drawCover();
+  root.append(coverSlot, bar, grid, file, coverFile);
   return () => { for (const w of live.values()) w.destroy?.(); };
 }

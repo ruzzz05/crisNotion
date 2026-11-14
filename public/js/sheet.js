@@ -129,3 +129,9 @@ export function hexToHsl(hex) {
   const h = !d ? 0 : max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
   return [Math.round(((h * 60) + 360) % 360), Math.round(s * 100), Math.round(l * 100)];
 }
+
+/** The four quick colours shown on the toolbar: what was stored where it is valid, the defaults elsewhere. */
+export function inkSlots(stored, names) {
+  const list = Array.isArray(stored) ? stored : [];
+  return names.slice(0, 4).map((def, i) => (names.includes(list[i]) ? list[i] : cleanHex(list[i]) || def));
+}

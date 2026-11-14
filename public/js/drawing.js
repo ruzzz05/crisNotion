@@ -8,7 +8,7 @@
 //   mountSheet(stage, opts)  – one inkable surface, optionally with movable pictures under the ink
 import * as S from './store.js';
 import { h, icon, menu, pop, toast } from './ui.js';
-import { STROKE, bottomOf, cleanHex, hexToHsl, hitImage, hslToHex, placeImage, resizeFrom, strokePath, strokeSize } from './sheet.js';
+import { STROKE, bottomOf, cleanHex, hexToHsl, hitImage, hslToHex, inkSlots, placeImage, resizeFrom, strokePath, strokeSize } from './sheet.js';
 import { shrink } from './image.js';
 import { isDark, onTheme } from './theme.js';
 
@@ -32,6 +32,7 @@ const prefs = { tool: 'pen', color: 'ink', size: STROKE.initial };
 try { Object.assign(prefs, JSON.parse(localStorage.getItem('cuaderno:draw') || '{}')); } catch { /* storage blocked */ }
 if (prefs.tool === 'move') prefs.tool = 'pen';
 prefs.size = strokeSize(prefs.size);
+prefs.slots = inkSlots(prefs.slots, INK); // the four quick colours on the toolbar
 const bars = new Set();
 const overlays = new Set(); // per-sheet redraw of the picture handles, which only show with the move tool
 const remember = () => { try { localStorage.setItem('cuaderno:draw', JSON.stringify(prefs)); } catch { /* storage blocked */ } };
@@ -70,11 +71,11 @@ function paint(ctx, s, colors) {
 const btn = (label, content, fn, on = false, cls = '') =>
   h('button', { class: `tb ${cls}${on ? ' on' : ''}`, type: 'button', 'aria-label': label, title: label, 'aria-pressed': String(on), onclick: fn }, content);
 
-/** Any colour for the pen: the usual inks, or one made with the sliders or typed as #rrggbb. */
-function colorPicker(anchor) {
+/** Any colour for quick colour number `slot`: the usual inks, or one made with the sliders or typed as #rrggbb. */
+function colorPicker(anchor, slot) {
   pop(anchor, box => {
     const colors = palette();
-    const use = color => setPrefs({ color, tool: prefs.tool === 'eraser' || prefs.tool === 'move' ? 'pen' : prefs.tool });
+    const use = color => setPrefs({ color, slots: prefs.slots.map((c, i) => (i === slot ? color : c)), tool: prefs.tool === 'eraser' || prefs.tool === 'move' ? 'pen' : prefs.tool });
     let [hue, sat, lum] = hexToHsl(inkOf(prefs.color, colors));
     const preview = h('span', { class: 'dot color-preview' });
     const hex = h('input', { class: 'color-hex', type: 'text', maxlength: 7, spellcheck: 'false', autocapitalize: 'none', 'aria-label': 'Color en hexadecimal', onchange: () => { const c = cleanHex(hex.value); if (c) { [hue, sat, lum] = hexToHsl(c); use(c); } show(); } });
@@ -135,7 +136,9 @@ export function mountToolbar(bar, { sheet = () => null, images = false, extra = 
       tool('pen', 'pen', 'Bolígrafo'), tool('hl', 'marker', 'Subrayador'), tool('eraser', 'eraser', 'Goma'),
       images && tool('move', 'hand', 'Mover imágenes'),
       h('span', { class: 'tb-sep' }),
-      btn('Color del trazo', h('span', { class: 'dot', style: `background:${inkOf(prefs.color, colors)}` }), e => colorPicker(e.currentTarget), false, 'color-now'),
+      // Four colours at hand. Tapping one uses it; tapping the one in use opens the picker to change it.
+      ...prefs.slots.map((c, i) => btn(`Color ${i + 1}` + (prefs.color === c ? ' (toca otra vez para cambiarlo)' : ''), h('span', { class: 'dot', style: `background:${inkOf(c, colors)}` }),
+        e => (prefs.color === c ? colorPicker(e.currentTarget, i) : setPrefs({ color: c, tool: prefs.tool === 'eraser' || prefs.tool === 'move' ? 'pen' : prefs.tool })), prefs.color === c, 'color')),
       stroke,
       h('span', { class: 'tb-sep' }),
       btn('Deshacer', icon('undo'), () => sheet()?.undo()),

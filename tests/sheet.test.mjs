@@ -107,3 +107,11 @@ test('colours: sliders give a hex colour and a hex colour gives the sliders back
   assert.equal(cleanHex('rojo'), null);
   assert.equal(cleanHex('#12345'), null);
 });
+
+test('inkSlots: the four quick colours of the toolbar are always four valid colours', async () => {
+  const { inkSlots } = await import('../public/js/sheet.js');
+  const names = ['ink', 'blue', 'red', 'green', 'orange'];
+  assert.deepEqual(inkSlots(undefined, names), ['ink', 'blue', 'red', 'green']);
+  assert.deepEqual(inkSlots(['red', '#ABC', 'nope', 'blue', 'green', 'ink'], names), ['red', '#aabbcc', 'red', 'blue']);
+  assert.deepEqual(inkSlots(['#123456'], names), ['#123456', 'blue', 'red', 'green']);
+});

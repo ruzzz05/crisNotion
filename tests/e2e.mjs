@@ -223,8 +223,12 @@ await section('drawing', async () => {
   check(barH <= 46, 'the drawing tools fit in one compact row: ' + barH);
   check(await page.$eval('.draw-base', c => c.width / c.clientWidth >= 2), 'the sheet is drawn with enough detail to look smooth');
   const lastStroke = () => page.evaluate(async () => new Promise(r => { const q = indexedDB.open('cuaderno'); q.onsuccess = () => { const g = q.result.transaction('drawings').objectStore('drawings').getAll(); g.onsuccess = () => r(g.result[0].strokes.at(-1)); }; }));
+  check(await count('.blk[data-t=draw] .draw-bar .tb.color') === 4 && await count('.blk[data-t=draw] .draw-bar .tb.color.on') === 1, 'four colours are in view on the toolbar, one of them in use');
+  await page.evaluate(() => document.querySelectorAll('.blk[data-t=draw] .draw-bar .tb.color')[1].click()); await sleep(120);
+  check(await page.evaluate(() => JSON.parse(localStorage.getItem('cuaderno:draw')).color) === 'blue' && !(await visible('.color-pop')), 'tapping another of the four colours just switches to it');
+  await page.evaluate(() => document.querySelectorAll('.blk[data-t=draw] .draw-bar .tb.color')[0].click()); await sleep(120);
   const slide = (cls, v) => page.$eval('.color-pop .color-range.' + cls, (e, v) => { e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); }, String(v));
-  await page.click('.draw-bar [aria-label="Color del trazo"]'); await sleep(150);
+  await page.click('.blk[data-t=draw] .draw-bar .tb.color.on'); await sleep(150);
   check(await visible('.color-pop') && await count('.color-pop .color-inks .tb') === 7 && await count('.color-pop .color-range') === 3, 'the colour button opens the usual inks and sliders for any colour');
   await slide('hue', 200); await slide('sat', 100); await slide('lum', 50); await sleep(100);
   check(await page.$eval('.color-hex', e => e.value) === '#00aaff', 'the sliders show the colour as hexadecimal: ' + await page.$eval('.color-hex', e => e.value));
@@ -232,9 +236,9 @@ await section('drawing', async () => {
   const nb2 = await (await page.$('.draw-live')).boundingBox();
   await stroke([[nb2.x + 560, nb2.y + 60], [nb2.x + 600, nb2.y + 70], [nb2.x + 640, nb2.y + 60]]); await sleep(600);
   check((await lastStroke()).c === '#00aaff', 'the pen writes in the colour made with the sliders: ' + (await lastStroke()).c);
-  await page.click('.draw-bar [aria-label="Color del trazo"]'); await sleep(150);
+  await page.click('.blk[data-t=draw] .draw-bar .tb.color.on'); await sleep(150);
   await page.$eval('.color-hex', e => { e.value = 'F00'; e.dispatchEvent(new Event('change', { bubbles: true })); }); await sleep(100);
-  check(await page.$eval('.color-pop .color-range.hue', e => e.value) === '0' && await page.$eval('.draw-bar [aria-label="Color del trazo"] .dot', e => getComputedStyle(e).backgroundColor) === 'rgb(255, 0, 0)', 'a colour can also be typed as hexadecimal');
+  check(await page.$eval('.color-pop .color-range.hue', e => e.value) === '0' && await page.$eval('.blk[data-t=draw] .draw-bar .tb.color.on .dot', e => getComputedStyle(e).backgroundColor) === 'rgb(255, 0, 0)', 'a colour can also be typed as hexadecimal');
   await page.click('.color-pop [data-ink=ink]'); await sleep(100);
   await press('Escape'); await sleep(100);
   check(await page.evaluate(() => JSON.parse(localStorage.getItem('cuaderno:draw')).color) === 'ink', 'and the usual inks are one tap away');
@@ -256,7 +260,7 @@ await section('pictures on the drawing sheet', async () => {
   await page.$eval('.blk[data-t=draw]', e => e.scrollIntoView({ block: 'center' })); await sleep(200);
   const big = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 600; c.height = 400; const x = c.getContext('2d'); x.fillStyle = '#7fd4a8'; x.fillRect(0, 0, 600, 400); x.fillStyle = '#1f6f4a'; x.fillRect(40, 40, 200, 120); return c.toDataURL('image/png').split(',')[1]; });
   writeFileSync(`${OUT}/big.png`, Buffer.from(big, 'base64'));
-  await (await page.$('.blk[data-t=draw] input.draw-file')).uploadFile(`${OUT}/big.png`); await sleep(700);
+  await (await page.$('.blk[data-t=draw] input.draw-file')).uploadFile(`${OUT}/big.png`); await sleep(1300);
   const img = () => page.$eval('.draw-img', e => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, loaded: e.naturalWidth > 0 }; });
   check(await count('.draw-img') === 1 && (await img()).loaded, 'a picture can be inserted into the drawing');
   check(await page.$eval('.draw-bar [aria-label="Mover imágenes"]', e => e.classList.contains('on')), 'inserting a picture switches to the move tool');
@@ -283,7 +287,7 @@ await section('pictures on the drawing sheet', async () => {
   check((await drawings())[0] === strokesBefore + 1 && Math.abs(d.x - c.x) < 1, 'with the pen you write on top of the picture without moving it');
   const above = await page.evaluate(() => { const i = document.querySelector('.draw-img'), cv = document.querySelector('.draw-base'); return !!(i.compareDocumentPosition(cv) & Node.DOCUMENT_POSITION_FOLLOWING); });
   check(above, 'ink is painted above the picture');
-  await (await page.$('.blk[data-t=draw] input.draw-file')).uploadFile(`${OUT}/big.png`); await sleep(800);
+  await (await page.$('.blk[data-t=draw] input.draw-file')).uploadFile(`${OUT}/big.png`); await sleep(1300);
   check(await count('.blk[data-t=draw] .draw-img') === 2 && await visible('.draw-del'), 'a selected picture shows a button to delete it');
   await page.click('.draw-del'); await sleep(700);
   check(await count('.blk[data-t=draw] .draw-img') === 1 && !(await visible('.draw-del')), 'the button deletes that picture and leaves the other');
@@ -327,7 +331,7 @@ await section('pdf', async () => {
   await page.mouse.move(box.x + 320, box.y + 264, { steps: 8 }); await page.mouse.up(); await sleep(700);
   check((await pdfInk()).join() === '1=1', 'highlighting on a PDF page is saved for that page: ' + (await pdfInk()).join());
   check(await page.$eval('.blk[data-t=pdf] .draw-bar', e => getComputedStyle(e).position === 'sticky'), 'the PDF tools stay in view while scrolling its pages');
-  await (await page.$('.blk[data-t=pdf] input.draw-file')).uploadFile(`${OUT}/big.png`); await sleep(800);
+  await (await page.$('.blk[data-t=pdf] input.draw-file')).uploadFile(`${OUT}/big.png`); await sleep(1300);
   check(await count('.pdf-page .draw-img') === 1 && await page.$eval('.pdf-page .draw-img', e => e.naturalWidth > 0), 'a picture can be placed on a PDF sheet');
   check(await page.$eval('.pdf-row', r => !!r.querySelector('.pdf-page .draw-img')), 'the picture lands on the sheet being used');
   await page.click('.blk[data-t=pdf] .draw-bar [aria-label="Bolígrafo"]');
@@ -352,7 +356,7 @@ await section('pdf margins', async () => {
   const s2 = await rect('.pdf-row:nth-child(2) .pdf-page');
   check(Math.abs(s2.w - sheet.w) < 1 && Math.abs(s2.l - sheet.l) < 1, 'all the sheets of the PDF keep the same width and line up');
   await addTo(2, 'l', 'Imagen');
-  await (await page.$('.blk[data-t=pdf] input.side-file')).uploadFile(`${OUT}/big.png`); await sleep(800);
+  await (await page.$('.blk[data-t=pdf] input.side-file')).uploadFile(`${OUT}/big.png`); await sleep(1300);
   const pic = await rect('.pdf-row:nth-child(2) .side-note[data-t=image] img'), sheet2 = await rect('.pdf-row:nth-child(2) .pdf-page');
   check(pic.w > 20 && pic.r <= sheet2.l + 1 && await page.$eval('.side-note[data-t=image] img', e => e.naturalWidth > 0), 'a picture can go in the left margin of a sheet');
   const g = await (await page.$('.side-note[data-t=image] .img-grip')).boundingBox();
@@ -523,6 +527,7 @@ await section('page background', async () => {
   await clickText('.page-ctl button', 'Fondo');
   await page.click('.pop .bg-grid [data-bg="blue"]'); await sleep(150);
   check((await bg()).c === 'rgb(231, 243, 248)' && (await bg()).i === 'none', 'choosing a colour replaces the picture: ' + JSON.stringify(await bg()));
+  check(await page.$eval('.blk[data-t=draw] .draw', e => getComputedStyle(e).backgroundColor) === 'rgba(0, 0, 0, 0)' && await page.$eval('.blk[data-t=draw] .draw-stage', e => getComputedStyle(e).backgroundColor) === 'rgba(0, 0, 0, 0)', 'the handwriting sheet takes the colour of the page');
   await clickText('.side-item', 'Inicio'); await sleep(200);
   check((await bg()).c === 'rgba(0, 0, 0, 0)', 'other views keep the default background');
   await clickText('.book .tree-row .tree-title', 'Matemáticas II'); await sleep(250);
@@ -688,6 +693,16 @@ await section('home board', async () => {
   check(await cardBg('clock') === 'rgba(0, 0, 0, 0)|none', 'the background of the clock can be removed: ' + await cardBg('clock'));
   await tintOf('pomodoro', 'Azul');
   check((await cardBg('pomodoro')).startsWith('rgb(231, 243, 248)'), 'the pomodoro can take a colour: ' + await cardBg('pomodoro'));
+  await page.evaluate(() => { document.querySelector('.scroll').scrollTop = 0; }); await sleep(150);
+  check(await count('.home-cover') === 0, 'Inicio has no cover until one is chosen');
+  await page.click('.home-cover-btn'); await sleep(150);
+  check(await visible('.pop .cover-grid'), 'in edit mode a cover can be chosen for Inicio');
+  await press('Escape'); await sleep(100);
+  await (await page.$('input.home-cover-input')).uploadFile(`${OUT}/big.png`); await sleep(900);
+  check((await page.$eval('.home-cover', e => getComputedStyle(e).backgroundImage)).includes('blob:'), 'a picture can be the cover of Inicio');
+  await page.click('.home-cover-btn'); await sleep(150);
+  await page.click('.pop .cover-grid .cover-g2'); await sleep(200);
+  check(await page.$eval('.home-cover', e => e.classList.contains('cover-g2') && getComputedStyle(e).backgroundImage.includes('gradient')), 'or one of the colours');
   await page.click('.widget[data-t=tasks] .w-del'); await sleep(150);
   check(!(await kinds()).includes('tasks'), 'a widget can be removed');
   await page.click('.home-add'); await sleep(150);
@@ -722,6 +737,7 @@ await section('home board', async () => {
   check((await text('.widget[data-t=text]')).includes('Repasar integrales') && paused !== '', 'text written on a widget is kept');
   check(Math.abs((await rect('photos')).w - p1.w) < 2, 'sizes are kept too');
   check(await cardBg('clock') === 'rgba(0, 0, 0, 0)|none' && (await cardBg('pomodoro')).startsWith('rgb(231, 243, 248)'), 'widget backgrounds are kept');
+  check(await page.$eval('.home-cover', e => e.classList.contains('cover-g2')) && !(await visible('.home-cover-btn')), 'the cover of Inicio is kept, and its button only shows while editing');
   const hi = () => text('.home-hero h1');
   check(/^Buen[oa]s (días|tardes|noches)$/.test(await hi()), 'with no name the greeting is plain: ' + await hi());
   await clickText('.side-item', 'Ajustes'); await sleep(200);
@@ -887,7 +903,7 @@ await section('cloud sync between two devices', async () => {
   }));
   check(there.blocks >= 10 && there.photo && there.drawPic === 1 && there.note.includes('nota al margen') && there.bg === 'rgb(231, 243, 248)', 'the page looks the same there: blocks, photo, drawing, margin notes and background: ' + JSON.stringify(there));
   const ink = await p2.evaluate(async () => new Promise(r => { const q = indexedDB.open('cuaderno'); q.onsuccess = () => { const g = q.result.transaction('drawings').objectStore('drawings').getAll(); g.onsuccess = () => r(g.result.map(d => d.strokes.length).sort().join()); }; }));
-  check(ink.split(',').includes('5'), 'the handwriting arrives too: ' + ink);
+  check(ink.split(',').includes('6'), 'the handwriting arrives too: ' + ink);
 
   await p2.evaluate(() => [...document.querySelectorAll('.side-item')].find(e => e.textContent.includes('Tareas')).click()); await sleep(200);
   await p2.click('.quick input'); await p2.keyboard.type('Tarea desde el otro dispositivo'); await p2.keyboard.press('Enter');
