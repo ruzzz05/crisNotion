@@ -214,7 +214,7 @@ test('photoIndex rotates through the photos once per period', async () => {
 });
 
 // ---------- Multi-day events, custom kinds, task ordering ----------
-import { spanPart, mergeKinds, placeAt, groupTasks } from '../public/js/model.js';
+import { spanPart, mergeKinds, placeAt, groupTasks, shownGroups } from '../public/js/model.js';
 
 test('spanPart: a one-day event shows its title', () => {
   assert.equal(spanPart({ date: '2026-11-10' }, '2026-11-10'), 'single');
@@ -248,4 +248,13 @@ test('groupTasks puts uncategorised tasks first, then each list, ordered by `ord
   const g = groupTasks(tasks, lists);
   assert.deepEqual(g.map(x => x.list?.id ?? null), [null, 'L2', 'L1']);
   assert.deepEqual(g[0].tasks.map(t => t.id), ['d', 'e', 'b']); // a deleted list's tasks fall back to no category
+});
+
+test('shownGroups hides the uncategorised group when it has no tasks, but keeps empty categories', () => {
+  const g = groupTasks([{ id: 'a', order: 0, listId: 'L1' }], [{ id: 'L1', order: 0 }, { id: 'L2', order: 1 }]);
+  assert.deepEqual(shownGroups(g).map(x => x.list?.id), ['L1', 'L2']);
+});
+test('shownGroups keeps the uncategorised group while it holds tasks', () => {
+  const g = groupTasks([{ id: 'a', order: 0 }], [{ id: 'L1', order: 0 }]);
+  assert.deepEqual(shownGroups(g).map(x => x.list?.id ?? null), [null, 'L1']);
 });

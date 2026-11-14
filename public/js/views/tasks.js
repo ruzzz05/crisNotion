@@ -1,7 +1,7 @@
 import * as S from '../store.js';
 import { h, icon, app, empty, confirmDialog, viewHead } from '../ui.js';
 import { taskRow, taskForm, labelForm } from '../parts.js';
-import { groupTasks, placeAt } from '../model.js';
+import { groupTasks, placeAt, shownGroups } from '../model.js';
 import { tint } from '../util.js';
 
 /** Drop `task` where the pointer was released: renumbers the tasks of the group it lands in. */
@@ -66,7 +66,7 @@ export function tasks(root) {
       h('button', { class: 'btn primary', type: 'button', onclick: () => taskForm() }, icon('plus'), 'Nueva'),
     ]),
     quick,
-    groups.some(g => g.tasks.length) || lists.length ? h('div', { class: 'task-groups' }, groups.filter(g => g.list || g.tasks.length || lists.length).map(section))
+    groups.some(g => g.tasks.length) || lists.length ? h('div', { class: 'task-groups' }, shownGroups(groups).map(section))
       : empty(all.length ? 'Todo hecho.' : 'Apunta aquí deberes y cosas por hacer. Toca una tarea para ponerle fecha o asignatura.'),
     done.length ? h('details', { class: 'done-list' },
       h('summary', null, `Hechas (${done.length})`),

@@ -333,3 +333,6 @@ export function groupTasks(tasks, lists) {
     ...[...lists].sort(byOrder).map(list => ({ list, tasks: sorted.filter(t => t.listId === list.id) })),
   ];
 }
+
+/** Groups to draw: categories always, the uncategorised group only while it holds tasks. */
+export const shownGroups = groups => groups.filter(g => g.list || g.tasks.length);
