@@ -3,7 +3,7 @@
 // Every structural change edits `page.blocks` and then calls sync(), which reconciles the DOM by block id.
 import * as S from './store.js';
 import { h, icon, app, menu, pop, placeNear, toast } from './ui.js';
-import { COLORS, COLOR_NAMES, esc, pasteHtml, sanitize } from './util.js';
+import { COLORS, COLOR_NAMES, esc, pasteHtml, sanitize, shouldCapitalize } from './util.js';
 import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, pdfAssets, rangeEnd, rowOf, rowSizes } from './model.js';
 import { mountDrawing } from './drawing.js';
 import { imageBox, shrink } from './image.js';
@@ -740,6 +740,24 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     if (!first || first.length < sc[0].length) return;
     first.deleteData(0, sc[0].length);
     setType(id, SHORTCUTS[sc[1]], false);
+  });
+
+  // The first letter of a sentence (start of a block or line, or after . ! ?) is capitalised as you type it.
+  list.addEventListener('beforeinput', e => {
+    if (e.inputType !== 'insertText' || !e.data || e.data.length !== 1) return;
+    const c = e.target.closest?.('.content');
+    const b = c && B(c.parentElement.dataset.id);
+    const s = getSelection();
+    if (!b || b.t === 'code' || !s.rangeCount || !s.isCollapsed) return;
+    let p = s.anchorNode.nodeType === 1 ? s.anchorNode : s.anchorNode.parentElement;
+    if (p.closest('code')) return;
+    while (p !== c && p.tagName !== 'DIV') p = p.parentElement;
+    const r = document.createRange();
+    r.selectNodeContents(p);
+    r.setEnd(s.anchorNode, s.anchorOffset);
+    if (!shouldCapitalize(r.toString(), e.data)) return;
+    e.preventDefault();
+    document.execCommand('insertText', false, e.data.toUpperCase());
   });
 
   list.addEventListener('paste', e => {

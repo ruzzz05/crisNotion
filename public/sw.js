@@ -1,5 +1,5 @@
 // Network first, cache as fallback: always the latest version when online, fully usable offline.
-const CACHE = 'cuaderno-v28';
+const CACHE = 'cuaderno-v29';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/db.js', 'js/store.js', 'js/model.js', 'js/tabs.js', 'js/ui.js', 'js/util.js', 'js/parts.js', 'js/editor.js', 'js/drawing.js', 'js/sheet.js', 'js/image.js', 'js/pdf.js', 'js/theme.js', 'js/transfer.js', 'js/board.js', 'js/widgets.js', 'js/cloud.js', 'js/synccore.js', 'js/firestore.js', 'js/firebase-config.js', 'vendor/pdfjs/pdf.min.mjs', 'vendor/pdfjs/pdf.worker.min.mjs',

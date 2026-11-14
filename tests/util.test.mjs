@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ymd, parseYmd, dow, mins, hhmm, relDay, esc, col, tint, COLORS, greeting, pasteHtml } from '../public/js/util.js';
+import { ymd, parseYmd, dow, mins, hhmm, relDay, esc, col, tint, COLORS, greeting, pasteHtml, shouldCapitalize } from '../public/js/util.js';
 
 test('ymd formats a local date as yyyy-mm-dd with zero padding', () => {
   assert.equal(ymd(new Date(2026, 0, 5)), '2026-01-05');
@@ -89,4 +89,23 @@ test('pasteHtml keeps one line as plain escaped text', () => {
 });
 test('pasteHtml turns a long text into one paragraph per line, blank lines included', () => {
   assert.equal(pasteHtml('a\r\nb\n\nc\n'), '<div>a</div><div>b</div><div><br></div><div>c</div>');
+});
+
+test('shouldCapitalize: a lowercase letter at the start of a paragraph', () => {
+  assert.equal(shouldCapitalize('', 'h'), true);
+  assert.equal(shouldCapitalize('  ', 'h'), true);
+  assert.equal(shouldCapitalize('¿', 'q'), true);
+});
+test('shouldCapitalize: after a full stop, ! or ? and a space', () => {
+  assert.equal(shouldCapitalize('Hola. ', 'm'), true);
+  assert.equal(shouldCapitalize('¡Hola! ', 'm'), true);
+  assert.equal(shouldCapitalize('¿Qué? ', 'y'), true);
+  assert.equal(shouldCapitalize('Hola.', 'm'), false); // no space yet: "e.g" or "3.5" must not change
+});
+test('shouldCapitalize: not inside a sentence, for digits, or for what is already upper case', () => {
+  assert.equal(shouldCapitalize('Hola, ', 'm'), false);
+  assert.equal(shouldCapitalize('Hola', 'm'), false);
+  assert.equal(shouldCapitalize('', '5'), false);
+  assert.equal(shouldCapitalize('', 'M'), false);
+  assert.equal(shouldCapitalize('', 'ñ'), true);
 });

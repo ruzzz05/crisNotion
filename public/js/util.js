@@ -65,6 +65,12 @@ export function pasteHtml(raw) {
   return lines.length === 1 ? esc(lines[0]) : lines.map(l => '<div>' + (esc(l) || '<br>') + '</div>').join('');
 }
 
+/** Whether typing lowercase letter \`ch\` after \`before\` (the text of its paragraph so far) should give a capital: it starts a sentence. */
+export function shouldCapitalize(before, ch) {
+  if (ch.length !== 1 || ch.toUpperCase() === ch) return false;
+  return /^[\s¿¡"“«(]*$/.test(before) || /[.!?…]["”»)]*\s+[¿¡"“«(]*$/.test(before);
+}
+
 const ALIGNS = new Set(['left', 'center', 'right', 'justify']);
 const ALLOWED = new Set(['B', 'I', 'U', 'S', 'STRONG', 'EM', 'BR', 'SPAN', 'MARK', 'STRIKE', 'FONT', 'DIV', 'CODE', 'A']);
 /** Keep only inline formatting; stored HTML may come from an imported backup. */

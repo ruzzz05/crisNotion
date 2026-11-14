@@ -153,7 +153,7 @@ await section('toggle', async () => {
   check((await blocks()).at(-1).hidden, 'closing the toggle hides its content');
   await page.click('.blk[data-t=toggle] .tog'); await sleep(80);
   check(!(await blocks()).at(-1).hidden, 'opening the toggle shows it again');
-  await caretIn('paso oculto');
+  await caretIn('Paso oculto');
   await newBlock(); await press('Backspace');
   check((await blocks()).at(-1).i === 0, 'Backspace on an empty nested block outdents it');
 });
@@ -483,7 +483,7 @@ await section('enter stays inside a text block', async () => {
   await type('uno'); await press('Enter'); await type('dos'); await sleep(100);
   check(await count('.blk') === n, 'Enter in a text block does not create another block: ' + n + ' -> ' + await count('.blk'));
   const inner = await page.evaluate(() => document.activeElement.innerText);
-  check(/uno/.test(inner) && /dos/.test(inner), 'both lines live in that block: ' + JSON.stringify(inner));
+  check(/uno/i.test(inner) && /dos/i.test(inner), 'both lines live in that block: ' + JSON.stringify(inner));
   await newBlock();
   check(await count('.blk') === n + 1, 'Ctrl+Enter starts a new block: ' + await count('.blk'));
 });
@@ -556,11 +556,11 @@ await section('columns', async () => {
   check(await beside(), 'the block menu places a block beside the previous one');
   await caretIn('Texto normal');
   await newBlock(); await type('debajo de la fila');
-  check(await top3() === 'Texto normal|Derivadas|debajo de la fila', 'Enter inside a column continues below the row: ' + await top3());
-  const a = await box('Texto normal'), b = await box('Derivadas'), c = await box('debajo de la fila');
+  check(await top3() === 'Texto normal|Derivadas|Debajo de la fila', 'Enter inside a column continues below the row: ' + await top3());
+  const a = await box('Texto normal'), b = await box('Derivadas'), c = await box('Debajo de la fila');
   check(c.t >= Math.max(a.b, b.b) - 1 && c.r - c.l > (a.r - a.l) * 1.5, 'the block under a row is full width again');
   await menuOf(1, 'Sacar de la columna');
-  check(!(await beside()) && await top3() === 'Texto normal|Derivadas|debajo de la fila', 'a block can be taken out of its column');
+  check(!(await beside()) && await top3() === 'Texto normal|Derivadas|Debajo de la fila', 'a block can be taken out of its column');
   const second = (await page.$$('.blk'))[1];
   await second.hover(); await sleep(120);
   const hb = await (await second.$('.g-drag')).boundingBox();
