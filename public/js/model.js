@@ -336,3 +336,6 @@ export function groupTasks(tasks, lists) {
 
 /** Groups to draw: categories always, the uncategorised group only while it holds tasks. */
 export const shownGroups = groups => groups.filter(g => g.list || g.tasks.length);
+
+/** Colour of an event in the calendar: its subject's, else its kind's, else blue. */
+export const eventColor = (e, kinds, subject) => subject?.color || kinds[e.kind]?.[1] || 'blue';

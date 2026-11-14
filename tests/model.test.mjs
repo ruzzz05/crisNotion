@@ -214,7 +214,7 @@ test('photoIndex rotates through the photos once per period', async () => {
 });
 
 // ---------- Multi-day events, custom kinds, task ordering ----------
-import { spanPart, mergeKinds, placeAt, groupTasks, shownGroups } from '../public/js/model.js';
+import { spanPart, mergeKinds, placeAt, groupTasks, shownGroups, eventColor } from '../public/js/model.js';
 
 test('spanPart: a one-day event shows its title', () => {
   assert.equal(spanPart({ date: '2026-11-10' }, '2026-11-10'), 'single');
@@ -257,4 +257,11 @@ test('shownGroups hides the uncategorised group when it has no tasks, but keeps 
 test('shownGroups keeps the uncategorised group while it holds tasks', () => {
   const g = groupTasks([{ id: 'a', order: 0 }], [{ id: 'L1', order: 0 }]);
   assert.deepEqual(shownGroups(g).map(x => x.list?.id ?? null), [null, 'L1']);
+});
+
+test('eventColor prefers the subject colour, then the kind colour, then blue', () => {
+  const kinds = { examen: ['Examen', 'red'] };
+  assert.equal(eventColor({ kind: 'examen' }, kinds, { color: 'green' }), 'green');
+  assert.equal(eventColor({ kind: 'examen' }, kinds, null), 'red');
+  assert.equal(eventColor({ kind: 'zzz' }, kinds, null), 'blue');
 });

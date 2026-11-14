@@ -2,7 +2,7 @@ import * as S from '../store.js';
 import { h, icon, iconBtn, app, viewHead } from '../ui.js';
 import { DAYS, DAYS_SHORT, cap, daysBetween, dow, fmtLong, tint, ymd } from '../util.js';
 import { KINDS, kinds, kindsManager, dayColor, eventForm, taskForm, byDate } from '../parts.js';
-import { spanPart } from '../model.js';
+import { spanPart, eventColor } from '../model.js';
 
 let month = null; // first day of the month on screen
 
@@ -17,7 +17,7 @@ export function calendar(root) {
     if (e.kind === 'festivo') { holidays[day] ??= { color: dayColor(e), event: e, part: spanPart(e, day) }; continue; }
     // A multi-day event names itself on its first and last day; the days between only show the bar.
     const part = spanPart(e, day), named = part !== 'mid';
-    (marks[day] ??= []).push({ label: named ? (e.time && part !== 'end' ? e.time + ' ' : '') + e.title : ' ', title: e.title, color: (all[e.kind] || KINDS.evento)[1], open: () => eventForm(e) });
+    (marks[day] ??= []).push({ label: named ? (e.time && part !== 'end' ? e.time + ' ' : '') + e.title : ' ', title: e.title, color: eventColor(e, all, S.liveSubject(e.subjectId)), open: () => eventForm(e) });
   }
   for (const t of S.all('task')) if (t.due && !t.done) (marks[t.due] ??= []).push({ label: '☐ ' + t.title, color: 'gray', open: () => taskForm(t) });
 
