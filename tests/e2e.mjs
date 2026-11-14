@@ -322,6 +322,9 @@ await section('photo', async () => {
 const pdfInk = () => page.evaluate(async () => new Promise(r => { const q = indexedDB.open('cuaderno'); q.onsuccess = () => { const g = q.result.transaction('drawings').objectStore('drawings').getAll(); g.onsuccess = () => r(g.result.filter(d => /:[0-9]+$/.test(d.id)).map(d => d.id.split(':')[1] + '=' + d.strokes.length)); }; }));
 const waitFor = async (fn, ms = 8000) => { for (const end = Date.now() + ms; Date.now() < end;) { if (await fn()) return true; await sleep(150); } return false; };
 
+const pdfPos = () => page.$eval('.pdf-pos', e => e.textContent.trim());
+const goPage = async n => { for (let i = 0; i < 6; i++) { const cur = Number((await pdfPos()).split('/')[0]); if (cur === n) return; await page.click(`.blk[data-t=pdf] .pdf-nav[aria-label="${cur < n ? 'Página siguiente' : 'Página anterior'}"]`); await sleep(250); } };
+const shownSheets = () => page.$$eval('.pdf-page', els => els.filter(e => e.offsetParent).length);
 await section('pdf', async () => {
   writeFileSync(`${OUT}/apuntes.pdf`, makePdf(2), 'latin1');
   await page.click('.page-tail'); await sleep(80);
@@ -331,6 +334,7 @@ await section('pdf', async () => {
   await (await page.$('input.pdf-input')).uploadFile(`${OUT}/apuntes.pdf`);
   check(await waitFor(async () => await count('.blk[data-t=pdf] .pdf-page') === 2), 'an uploaded PDF shows one sheet per page');
   check((await text('.pdf-name')).includes('apuntes.pdf'), 'the PDF block shows the file name');
+  check(await shownSheets() === 1 && await pdfPos() === '1 / 2', 'a PDF shows one page at a time: ' + await shownSheets() + ' ' + await pdfPos());
   await page.$eval('.pdf-page', e => e.scrollIntoView({ block: 'start' })); await sleep(200);
   const painted = () => page.$eval('.pdf-canvas', c => { if (!c.width) return false; const x = c.getContext('2d'), k = c.width / 595, d = x.getImageData(Math.round(200 * k), Math.round((842 - 660) * k), 1, 1).data; return d[2] > 150 && d[0] < 120; });
   check(await waitFor(painted), 'the PDF page itself is rendered');
@@ -343,6 +347,10 @@ await section('pdf', async () => {
   await (await page.$('.blk[data-t=pdf] input.draw-file')).uploadFile(`${OUT}/big.png`); await sleep(1300);
   check(await count('.pdf-page .draw-img') === 1 && await page.$eval('.pdf-page .draw-img', e => e.naturalWidth > 0), 'a picture can be placed on a PDF sheet');
   check(await page.$eval('.pdf-row', r => !!r.querySelector('.pdf-page .draw-img')), 'the picture lands on the sheet being used');
+  await goPage(2);
+  check(await pdfPos() === '2 / 2' && await shownSheets() === 1 && await page.$$eval('.pdf-page .draw-img', els => els.filter(e => e.offsetParent).length) === 0, 'turning the page leaves the picture of page 1 behind');
+  await goPage(1);
+  check(await page.$$eval('.pdf-page .draw-img', els => els.filter(e => e.offsetParent).length) === 1, 'and it is still there when coming back');
   await page.click('.blk[data-t=pdf] .draw-bar [aria-label="Bolígrafo"]');
   await shot('02c-pdf');
 });
@@ -350,11 +358,13 @@ await section('pdf', async () => {
 await section('pdf margins', async () => {
   const rect = sel => page.$eval(sel, e => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom, w: r.width }; });
   const addTo = async (row, side, what) => {
+    await goPage(row);
     await page.$eval(`.pdf-row:nth-child(${row})`, e => e.scrollIntoView({ block: 'center' })); await sleep(200);
     await page.click(`.pdf-row:nth-child(${row}) .pdf-side[data-side=${side}] .side-add`); await sleep(150);
     await clickText('.pop .menu-item', what); await sleep(200);
   };
   check(await count('.pdf-row') === 2 && await count('.pdf-side .side-add') === 4, 'every PDF sheet has a margin on each side to add things');
+  await goPage(1);
   const before = await rect('.pdf-row:nth-child(1) .pdf-page');
   await addTo(1, 'r', 'Texto');
   check(await page.evaluate(() => document.activeElement?.classList.contains('note-text')), 'adding text to a margin starts writing in it');
@@ -362,6 +372,7 @@ await section('pdf margins', async () => {
   const sheet = await rect('.pdf-row:nth-child(1) .pdf-page'), note = await rect('.side-note[data-t=text]');
   check(note.l >= sheet.r - 1 && note.t >= sheet.t - 1 && note.t < sheet.b, 'the note sits to the right of its sheet, at its height: ' + JSON.stringify([sheet, note]));
   check(sheet.w > before.w * 0.55, 'the sheet stays readable next to its notes: ' + JSON.stringify([before.w, sheet.w]));
+  await goPage(2);
   const s2 = await rect('.pdf-row:nth-child(2) .pdf-page');
   check(Math.abs(s2.w - sheet.w) < 1 && Math.abs(s2.l - sheet.l) < 1, 'all the sheets of the PDF keep the same width and line up');
   await addTo(2, 'l', 'Imagen');

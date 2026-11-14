@@ -339,3 +339,6 @@ export const shownGroups = groups => groups.filter(g => g.list || g.tasks.length
 
 /** Colour of an event in the calendar: its subject's, else its kind's, else blue. */
 export const eventColor = (e, kinds, subject) => subject?.color || kinds[e.kind]?.[1] || 'blue';
+
+/** Page shown after moving `delta` pages from `cur` (1-based) in a PDF of `total` pages; stays within 1..total. */
+export const stepPage = (cur, delta, total) => Math.max(1, Math.min(Math.max(1, total), cur + delta));

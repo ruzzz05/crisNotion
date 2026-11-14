@@ -1,10 +1,11 @@
 // PDF block: every page of the file is drawn with pdf.js and gets its own ink sheet on top,
-// so you can highlight, annotate and place pictures. One toolbar, kept in view while scrolling, drives all pages.
+// so you can highlight, annotate and place pictures. Only one page is shown at a time and you turn pages sideways;
+// what is placed on a page stays on that page. One toolbar, kept in view while scrolling, drives the page on screen.
 // Each sheet also has a margin on either side that holds notes: text, pictures and drawings.
 import * as S from './store.js';
 import { h, icon, menu, toast } from './ui.js';
 import { sanitize } from './util.js';
-import { sideAdd, sideList, sideRemove, sidesUsed } from './model.js';
+import { sideAdd, sideList, sideRemove, sidesUsed, stepPage } from './model.js';
 import { mountSheet, mountToolbar, W } from './drawing.js';
 import { imageBox, shrink } from './image.js';
 
@@ -20,13 +21,17 @@ const load = () => lib ??= import('../vendor/pdfjs/pdf.min.mjs').then(m => {
 export const pageInkId = (blockId, n) => `${blockId}:${n}`;
 
 export function mountPdf(host, block, changed) {
-  let dead = false, active = null, task = null, sideTarget = null;
-  const sheets = [];
+  let dead = false, active = null, task = null, sideTarget = null, cur = 1, total = 0;
+  const sheets = [], rows = [], rendered = new Set();
   const noteSheets = new Map(); // margin drawing id -> sheet
   const bar = h('div', { class: 'draw-bar pdf-bar', role: 'toolbar', 'aria-label': 'Herramientas para anotar el PDF' });
   const pagesEl = h('div', { class: 'pdf-pages' });
   const status = h('p', { class: 'muted pdf-status' }, 'Abriendo el PDF…');
   const countEl = h('span', { class: 'muted pdf-count' });
+  const pager = () => h('div', { class: 'pdf-pager' },
+    h('button', { class: 'ibtn pdf-nav', type: 'button', 'aria-label': 'Página anterior', onclick: e => turn(-1, e) }, icon('back')),
+    h('span', { class: 'pdf-pos' }),
+    h('button', { class: 'ibtn pdf-nav', type: 'button', 'aria-label': 'Página siguiente', onclick: e => turn(1, e) }, icon('next')));
   const sideFile = h('input', {
     class: 'side-file', type: 'file', accept: 'image/*', hidden: true, onchange: async () => {
       const f = sideFile.files[0], add = sideTarget;
@@ -37,8 +42,8 @@ export function mountPdf(host, block, changed) {
     },
   });
   host.append(
-    h('div', { class: 'pdf-head' }, icon('doc'), h('span', { class: 'pdf-name' }, block.name || 'Documento PDF'), countEl),
-    bar, status, pagesEl, sideFile);
+    h('div', { class: 'pdf-head' }, icon('doc'), h('span', { class: 'pdf-name' }, block.name || 'Documento PDF'), countEl, pager()),
+    bar, status, pagesEl, h('div', { class: 'pdf-foot' }, pager()), sideFile);
 
   // The tools act on the sheet last touched while it is on screen; otherwise on the first sheet in view.
   const onScreen = s => { const r = s.stage.getBoundingClientRect(); return r.bottom > 80 && r.top < innerHeight - 80; };
@@ -107,10 +112,24 @@ export function mountPdf(host, block, changed) {
       }, icon('plus')));
   }
 
-  // Pages are only rasterised when they come near the screen.
-  const io = new IntersectionObserver(entries => {
-    for (const e of entries) if (e.isIntersecting) { io.unobserve(e.target); e.target.renderPage(); }
-  }, { root: host.closest('.scroll'), rootMargin: '800px 0px' });
+  /** Shows page `n` only; a page is rasterised the first time it is shown. */
+  function show(n, dir = 0) {
+    cur = n;
+    rows.forEach((row, i) => {
+      row.hidden = i + 1 !== n;
+      row.classList.remove('from-next', 'from-prev');
+      if (i + 1 === n && dir) row.classList.add(dir > 0 ? 'from-next' : 'from-prev');
+    });
+    if (!rendered.has(n) && rows[n - 1]) { rendered.add(n); rows[n - 1].querySelector('.pdf-page').renderPage(); }
+    for (const el of host.querySelectorAll('.pdf-pos')) el.textContent = total ? `${n} / ${total}` : '';
+    for (const b of host.querySelectorAll('.pdf-nav')) b.disabled = b.getAttribute('aria-label') === 'Página anterior' ? n <= 1 : n >= total;
+  }
+  function turn(delta, e) {
+    const n = stepPage(cur, delta, total);
+    if (n === cur) return;
+    show(n, delta);
+    if (e?.currentTarget.closest('.pdf-foot')) host.scrollIntoView({ block: 'start' });
+  }
 
   (async () => {
     try {
@@ -122,6 +141,7 @@ export function mountPdf(host, block, changed) {
       if (dead) return;
       if (block.n !== doc.numPages) { block.n = doc.numPages; changed(); }
       status.remove();
+      total = doc.numPages;
       countEl.textContent = doc.numPages === 1 ? '1 página' : `${doc.numPages} páginas`;
       syncSides();
       for (let n = 1; n <= doc.numPages; n++) {
@@ -130,7 +150,9 @@ export function mountPdf(host, block, changed) {
         const vp = pg.getViewport({ scale: 1 });
         const canvas = h('canvas', { class: 'pdf-canvas' });
         const stage = h('div', { class: 'pdf-page', 'data-n': n }, canvas);
-        pagesEl.append(h('div', { class: 'pdf-row' }, side(n, 'l'), stage, side(n, 'r')));
+        const row = h('div', { class: 'pdf-row', hidden: n !== 1 }, side(n, 'l'), stage, side(n, 'r'));
+        rows.push(row);
+        pagesEl.append(row);
         sheets.push(mountSheet(stage, { id: pageInkId(block.id, n), height: () => W * vp.height / vp.width, images: true, light: true, onActive: setActive }));
         stage.renderPage = async () => {
           try {
@@ -142,8 +164,9 @@ export function mountPdf(host, block, changed) {
             await pg.render({ canvas, viewport: v }).promise;
           } catch (e) { if (!dead) console.error(e); }
         };
-        io.observe(stage);
+        if (n === 1) show(1);
       }
+      show(cur);
     } catch (e) {
       console.error(e);
       if (!dead) status.textContent = 'No se ha podido abrir este PDF.';
@@ -153,7 +176,6 @@ export function mountPdf(host, block, changed) {
   return () => {
     if (dead) return;
     dead = true;
-    io.disconnect();
     unbar();
     for (const s of [...sheets, ...noteSheets.values()]) s.destroy();
     task?.destroy().catch(() => {}); // the loading task owns the worker-side document

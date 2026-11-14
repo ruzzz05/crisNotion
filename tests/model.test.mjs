@@ -214,7 +214,7 @@ test('photoIndex rotates through the photos once per period', async () => {
 });
 
 // ---------- Multi-day events, custom kinds, task ordering ----------
-import { spanPart, mergeKinds, placeAt, groupTasks, shownGroups, eventColor } from '../public/js/model.js';
+import { spanPart, mergeKinds, placeAt, groupTasks, shownGroups, eventColor, stepPage } from '../public/js/model.js';
 
 test('spanPart: a one-day event shows its title', () => {
   assert.equal(spanPart({ date: '2026-11-10' }, '2026-11-10'), 'single');
@@ -264,4 +264,16 @@ test('eventColor prefers the subject colour, then the kind colour, then blue', (
   assert.equal(eventColor({ kind: 'examen' }, kinds, { color: 'green' }), 'green');
   assert.equal(eventColor({ kind: 'examen' }, kinds, null), 'red');
   assert.equal(eventColor({ kind: 'zzz' }, kinds, null), 'blue');
+});
+
+test('stepPage moves between PDF pages and stops at both ends', () => {
+  assert.equal(stepPage(1, 1, 3), 2);
+  assert.equal(stepPage(3, 1, 3), 3);
+  assert.equal(stepPage(1, -1, 3), 1);
+  assert.equal(stepPage(2, -1, 3), 1);
+});
+test('stepPage jumps to a page number within range, and copes with no pages', () => {
+  assert.equal(stepPage(1, 99, 5), 5);
+  assert.equal(stepPage(4, -99, 5), 1);
+  assert.equal(stepPage(1, 1, 0), 1);
 });
