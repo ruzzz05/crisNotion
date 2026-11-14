@@ -14,7 +14,7 @@ export function calendar(root) {
   const all = kinds();
   for (const e of S.all('event').sort(byDate)) for (const day of daysBetween(e.date, e.endDate)) {
     // A holiday only colours its days: no chip, just its name as a tooltip; a tap on the day edits it.
-    if (e.kind === 'festivo') { holidays[day] ??= { color: dayColor(e), event: e }; continue; }
+    if (e.kind === 'festivo') { holidays[day] ??= { color: dayColor(e), event: e, part: spanPart(e, day) }; continue; }
     // A multi-day event names itself on its first and last day; the days between only show the bar.
     const part = spanPart(e, day), named = part !== 'mid';
     (marks[day] ??= []).push({ label: named ? (e.time && part !== 'end' ? e.time + ' ' : '') + e.title : ' ', title: e.title, color: (all[e.kind] || KINDS.evento)[1], open: () => eventForm(e) });
@@ -39,6 +39,7 @@ export function calendar(root) {
       onkeydown: e => { if (e.key === 'Enter' && e.target === cell) eventForm(holidays[key]?.event || { date: key }); },
     },
     h('span', { class: 'cal-num' }, d.getDate() === 1 ? `${d.getDate()} ${d.toLocaleDateString('es-ES', { month: 'short' })}` : d.getDate()),
+    holidays[key] && holidays[key].part !== 'mid' && h('span', { class: 'cal-hol' }, holidays[key].event.title),
     list.slice(0, 3).map(m => h('button', { class: 'cal-ev', type: 'button', style: tint(m.color), title: m.title || m.label, onclick: m.open }, m.label)),
     list.length > 3 && h('span', { class: 'cal-more' }, `+${list.length - 3} más`));
     cells.push(cell);

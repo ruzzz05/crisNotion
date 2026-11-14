@@ -651,6 +651,8 @@ await section('calendar and tasks', async () => {
   check(spanDays >= 2 && spanDays <= 3, 'every day of the range is coloured: ' + spanDays);
   const named = (await texts('.cal-ev')).filter(t => t.includes('Pilar')).length;
   check(named === 0, 'a holiday only colours its days, with no chip: ' + named);
+  const holNames = (await texts('.cal-hol')).filter(x => x.includes('Pilar')).length;
+  check(holNames === 2, 'a multi-day holiday writes its name on the first and last day only: ' + holNames);
   await page.click('.cal-cell.holiday'); await sleep(150);
   await page.evaluate(() => { const f = [...document.querySelectorAll('.modal .field')].find(x => x.textContent.startsWith('Hasta el')).querySelector('input'); f.value = '2000-01-01'; });
   await clickText('.modal button', 'Guardar'); await sleep(200);
