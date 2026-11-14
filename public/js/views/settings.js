@@ -97,6 +97,7 @@ export function settings(root) {
   const font = h('select', { class: 'font-pick', 'aria-label': 'Letra', onchange: () => setFont(font.value) }, FONTS.map(([k, label]) => h('option', { value: k }, label)));
   font.value = getFont();
   const acc = account();
+  const name = h('input', { class: 'name-input', type: 'text', 'aria-label': 'Tu nombre', placeholder: 'Tu nombre', autocomplete: 'given-name', maxlength: 40, value: st.name || '', onchange: () => { S.put({ ...S.settings(), name: name.value.trim() }); } });
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   const sec = (title, ...kids) => h('section', { class: 'set-sec' }, h('h2', null, title), kids);
 
@@ -106,6 +107,9 @@ export function settings(root) {
     !standalone && sec('Instalar en el iPhone o iPad',
       h('p', null, 'Abre esta página en Safari, pulsa Compartir y elige «Añadir a pantalla de inicio». Cuaderno se abrirá a pantalla completa y funcionará sin conexión.')),
     sec('Cuenta y sincronización', acc.el),
+    sec('Tu nombre',
+      h('p', null, 'Para saludarte en Inicio. Si lo dejas vacío se usa el nombre de tu cuenta.'),
+      name),
     sec('Tema',
       h('p', null, 'Los colores de la aplicación en este dispositivo. Cada página puede tener además su propio fondo.'),
       theme),
@@ -114,7 +118,7 @@ export function settings(root) {
       font),
     sec('Horario',
       h('label', { class: 'switch' },
-        h('input', { type: 'checkbox', checked: st.weekend, onchange: e => { S.put({ ...st, weekend: e.target.checked }); } }),
+        h('input', { type: 'checkbox', checked: st.weekend, onchange: e => { S.put({ ...S.settings(), weekend: e.target.checked }); } }),
         h('span', null, 'Mostrar sábado y domingo'))),
     sec('Copia de seguridad',
       h('p', null, 'Todo se guarda en este dispositivo. Guarda una copia en Archivos para no perder nada o para pasarlo a otro dispositivo. La sincronización en la nube llegará más adelante.'),

@@ -401,12 +401,16 @@ button.row:hover, button.row-main:hover .row-t { background: var(--hover); }
 .editing .w-veil { display: block; position: absolute; inset: 0; z-index: 2; border-radius: inherit; cursor: grab; touch-action: none; }
 .editing .w-del { display: grid; place-items: center; position: absolute; top: -9px; right: -9px; z-index: 4; width: 26px; height: 26px; border-radius: 50%; background: var(--card); box-shadow: var(--shadow); color: var(--fg2); }
 .editing .w-del .ico { width: 13px; height: 13px; }
+.w-color { display: none; }
+.editing .w-color { display: grid; place-items: center; position: absolute; top: -9px; left: -9px; z-index: 4; width: 26px; height: 26px; border-radius: 50%; background: var(--card); box-shadow: var(--shadow); color: var(--fg2); }
+.editing .w-color .ico { width: 14px; height: 14px; }
+.widget[data-bg] .w-card { background: var(--wbg); box-shadow: none; }
 .editing .w-resize { display: block; position: absolute; right: -7px; bottom: -7px; z-index: 4; width: 24px; height: 24px; border-right: 4px solid var(--blue); border-bottom: 4px solid var(--blue); border-radius: 0 0 10px 0; cursor: nwse-resize; touch-action: none; }
 .editing .w-resize::after { content: ""; position: absolute; inset: -10px; }
 .widget.moving { outline: 2px solid var(--blue); opacity: .7; }
 .widget.moving .w-veil { cursor: grabbing; }
 .widget.resizing { outline: 2px solid var(--blue); }
-@media (pointer: coarse) { .editing .w-del { width: 32px; height: 32px; top: -12px; right: -12px; } .editing .w-resize { width: 30px; height: 30px; } }
+@media (pointer: coarse) { .editing .w-color { width: 32px; height: 32px; top: -12px; left: -12px; } .editing .w-del { width: 32px; height: 32px; top: -12px; right: -12px; } .editing .w-resize { width: 30px; height: 30px; } }
 .w-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 14px; border-radius: 14px; background: var(--card); box-shadow: inset 0 0 0 1px var(--line2); container-type: size; text-align: center; overflow: hidden; }
 .clock-time { font-size: clamp(1.5rem, min(27cqw, 52cqh), 10rem); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
 .clock-date { color: var(--fg2); font-size: clamp(.75rem, min(5.5cqw, 12cqh), 1.25rem); }
@@ -456,7 +460,7 @@ select.photo-every { width: auto; min-height: 30px; padding-top: 2px; padding-bo
 .set-sec { padding: 16px 0; border-top: 1px solid var(--line); }
 .set-sec h2 { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
 .set-sec p { max-width: 64ch; color: var(--fg2); font-size: .9375rem; }
-.set-sec select { width: auto; min-width: 220px; margin-top: 4px; }
+.set-sec select, .set-sec .name-input { width: auto; min-width: 220px; margin-top: 4px; }
 .set-sec .form-actions { margin-top: 12px; }
 .cloud-box { display: flex; flex-direction: column; gap: 6px; }
 .cloud-form { display: flex; flex-direction: column; gap: 8px; max-width: 320px; margin-top: 6px; }

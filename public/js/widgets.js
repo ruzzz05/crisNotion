@@ -3,7 +3,8 @@
 // Sizes and limits are in board.js; the board itself (grid, moving, resizing) is in views/home.js.
 import * as S from './store.js';
 import { h, icon, app, empty, menu, modal, toast } from './ui.js';
-import { dow, fmtLong, greeting, mins, sanitize, tint, ymd } from './util.js';
+import { displayName, dow, fmtLong, greetingFor, mins, sanitize, tint, ymd } from './util.js';
+import { cloud } from './cloud.js';
 import { eventRow, taskRow, eventForm, taskForm, subjectName, byDue, byDate } from './parts.js';
 import { nextSwap, photoIndex } from './model.js';
 import { mmss, pomoDone, pomoLeft, pomoNext, pomoPause, pomoReset, pomoStart } from './board.js';
@@ -15,10 +16,21 @@ const EVERY = [[1, 'Cada hora'], [3, 'Cada 3 horas'], [24, 'Una vez al día']];
  * Photo frame: holds any number of photos and shows one, moving on to the next every hour, 3 hours or day.
  * Which photo is due depends only on the clock, so it is the same after closing and reopening the app.
  */
-function photoWidget() {
+/**
+ * Where a photo frame keeps its photos. The one Inicio starts with (id 'photos') uses the doc it always used;
+ * any other keeps them in its own settings on the board.
+ */
+export function photoStore(item, save = () => {}) {
+  if (item.id === 'photos') {
+    return { get: () => S.get('photos') || { id: 'photos', type: 'photos', items: [], every: 1 }, set: d => { S.put(d); }, drop: () => { if (S.get('photos')) S.remove('photos'); } };
+  }
+  return { get: () => ({ items: item.items || [], every: item.every || 1 }), set: d => { item.items = d.items; item.every = d.every; save(); }, drop: () => {} };
+}
+
+function photoWidget(item, { save }) {
   const el = h('section', { class: 'photo-widget', 'aria-label': 'Fotos' });
   let timer = 0, dead = false;
-  const data = () => S.get('photos') || { id: 'photos', type: 'photos', items: [], every: 1 };
+  const store = photoStore(item, save), data = store.get;
   const due = d => photoIndex(Date.now(), d.every, d.items.length, new Date().getTimezoneOffset());
 
   const input = h('input', {
@@ -28,7 +40,7 @@ function photoWidget() {
       for (const f of files) {
         try { d.items.push(await S.saveBlob(await shrink(f))); } catch (e) { console.error(e); toast('No se ha podido añadir una de las fotos.'); }
       }
-      S.put(d);
+      store.set(d);
       draw();
     },
   });
@@ -48,7 +60,7 @@ function photoWidget() {
                   const cur = data();
                   cur.items = cur.items.filter(x => x !== id);
                   S.delBlob(id);
-                  S.put(cur);
+                  store.set(cur);
                   list();
                   draw();
                 },
@@ -74,7 +86,7 @@ function photoWidget() {
       class: 'photo-every', 'aria-label': 'Cambiar de foto', value: String(d.every), onchange: () => {
         const cur = data();
         cur.every = Number(every.value);
-        S.put(cur);
+        store.set(cur);
         draw();
       },
     }, EVERY.map(([v, label]) => h('option', { value: v }, label)));
@@ -104,8 +116,11 @@ const section = (ic, title, action, ...kids) => h('section', { class: 'home-sec'
 const link = (label, fn) => h('button', { class: 'tbtn', type: 'button', onclick: fn }, label);
 
 function hello() {
-  const now = new Date();
-  return { el: h('header', { class: 'home-hero' }, h('h1', null, greeting(now.getHours())), h('p', { class: 'muted' }, fmtLong(now))) };
+  const now = new Date(), title = h('h1');
+  // The account name may only be known a moment after the page is drawn.
+  const draw = () => { title.textContent = greetingFor(now.getHours(), displayName(S.settings().name, cloud.status.user)); };
+  draw();
+  return { el: h('header', { class: 'home-hero' }, title, h('p', { class: 'muted' }, fmtLong(now))), destroy: cloud.onStatus(draw) };
 }
 
 function recent() {
@@ -245,5 +260,5 @@ export const WIDGETS = {
   clock: { name: 'Reloj', make: clock },
   pomodoro: { name: 'Pomodoro', make: pomodoro },
   text: { name: 'Texto', make: text },
-  image: { name: 'Imagen', make: image },
+  image: { name: 'Imagen fija', make: image },
 };

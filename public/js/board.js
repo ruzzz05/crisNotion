@@ -4,17 +4,17 @@
 export const COLS = 12;
 const MAX_ROWS = 24;
 
-/** Default and smallest size of each widget, in grid cells. `single`: built into the app, at most one. */
+/** Default and smallest size of each widget, in grid cells. `single`: built into the app, at most one. `tint`: its background can be changed. */
 export const WIDGET_SIZES = {
   hello: { w: 12, h: 2, minW: 3, minH: 2, single: true },
-  photos: { w: 12, h: 7, minW: 3, minH: 4, single: true },
+  photos: { w: 12, h: 7, minW: 3, minH: 4 },
   recent: { w: 12, h: 4, minW: 3, minH: 4, single: true },
   classes: { w: 6, h: 5, minW: 3, minH: 3, single: true },
   events: { w: 6, h: 5, minW: 3, minH: 3, single: true },
   tasks: { w: 12, h: 5, minW: 3, minH: 3, single: true },
-  clock: { w: 4, h: 3, minW: 2, minH: 2 },
-  pomodoro: { w: 4, h: 5, minW: 3, minH: 4 },
-  text: { w: 4, h: 4, minW: 2, minH: 2 },
+  clock: { w: 4, h: 3, minW: 2, minH: 2, tint: true },
+  pomodoro: { w: 4, h: 5, minW: 3, minH: 4, tint: true },
+  text: { w: 4, h: 4, minW: 2, minH: 2, tint: true },
   image: { w: 4, h: 5, minW: 2, minH: 2 },
 };
 
@@ -51,6 +51,11 @@ export function moveItem(items, id, index) {
 
 /** How many grid cells a length in pixels covers, given the cell size and the gap between cells. */
 export const spanFor = (px, cell, gap, min, max) => clamp((px + gap) / (cell + gap), min, max);
+
+/** Background colours a widget can take, besides its default card and 'none'. */
+export const TINTS = ['gray', 'brown', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'red', 'beige'];
+/** CSS colour for a stored background choice; null = the default card. */
+export const widgetTint = bg => (bg === 'none' ? 'transparent' : TINTS.includes(bg) ? `var(--b-${bg})` : null);
 
 // ---------- Pomodoro ----------
 // p = {work, rest (minutes), phase: 'work' | 'rest', endsAt: ms while running, left: ms while paused, count: {day, n}}

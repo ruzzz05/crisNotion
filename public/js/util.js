@@ -23,6 +23,10 @@ export const hhmm = m => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 export const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 export const fmtLong = d => cap(d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }));
 export const fmtShort = d => d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+/** "Buenos días, Cris" — or just the greeting when there is no name. */
+export const greetingFor = (hour, name) => greeting(hour) + (name ? ', ' + name : '');
+/** The name to greet with: the one written in Ajustes, or else the account name. */
+export const displayName = (custom, username) => (custom || '').trim() || cap(username || '');
 export const greeting = hour => (hour >= 6 && hour < 13 ? 'Buenos días' : hour >= 13 && hour < 21 ? 'Buenas tardes' : 'Buenas noches');
 
 export function relDay(s) {

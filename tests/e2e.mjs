@@ -607,7 +607,7 @@ await section('home board', async () => {
   check(await page.$eval('.view', e => e.classList.contains('editing')) && await visible('.w-resize'), 'Editar shows the handles');
   await page.click('.home-add'); await sleep(150);
   const offered = (await texts('.pop .menu-label')).join('|');
-  check(offered === 'Reloj|Pomodoro|Texto|Imagen', 'new widgets can be added; the ones already there are not offered twice: ' + offered);
+  check(offered === 'Fotos que van cambiando|Reloj|Pomodoro|Texto|Imagen fija', 'new widgets can be added; the built-in ones already there are not offered twice: ' + offered);
   await clickText('.pop .menu-item', 'Reloj'); await sleep(250);
   check(/^\d\d:\d\d/.test(await text('.widget[data-t=clock]')), 'a clock shows the time: ' + await text('.widget[data-t=clock] .clock-time'));
 
@@ -626,8 +626,20 @@ await section('home board', async () => {
   check((await kinds()).startsWith('clock,hello'), 'dragging a widget onto another moves it there: ' + await kinds());
 
   await addWidget('Texto'); await addWidget('Pomodoro');
+  await addWidget('Fotos que van cambiando');
+  check(await count('.photo-widget') === 2 && await count('.photo-empty') === 1, 'a second frame of changing photos can be added, and it starts empty');
+  await (await page.$('.photo-empty ~ input.photo-widget-input')).uploadFile(`${OUT}/photo.png`, `${OUT}/big.png`); await sleep(900);
+  const frames = await texts('.photo-count');
+  check(frames.join('|') === '1 foto|2 fotos' && await count('.photo-widget img.photo-now') === 2, 'each frame keeps its own photos: ' + frames.join('|'));
   await (await page.$('input.home-image-input')).uploadFile(`${OUT}/big.png`); await sleep(900);
   check(await page.evaluate(() => document.querySelector('.widget[data-t=image] img')?.naturalWidth > 0), 'an image can be added as a widget');
+  const cardBg = t => page.$eval(`.widget[data-t=${t}] .w-card`, e => { const s = getComputedStyle(e); return s.backgroundColor + '|' + s.boxShadow; });
+  const tintOf = async (t, label) => { await page.$eval(`.widget[data-t=${t}]`, e => e.scrollIntoView({ block: 'center' })); await sleep(150); await page.click(`.widget[data-t=${t}] .w-color`); await sleep(150); await clickText('.pop .menu-item', label); await sleep(150); };
+  check(await count('.widget[data-t=clock] .w-color') === 1 && await count('.widget[data-t=pomodoro] .w-color') === 1 && await count('.widget[data-t=recent] .w-color') === 0, 'the clock and the pomodoro have a background button');
+  await tintOf('clock', 'Sin fondo');
+  check(await cardBg('clock') === 'rgba(0, 0, 0, 0)|none', 'the background of the clock can be removed: ' + await cardBg('clock'));
+  await tintOf('pomodoro', 'Azul');
+  check((await cardBg('pomodoro')).startsWith('rgb(231, 243, 248)'), 'the pomodoro can take a colour: ' + await cardBg('pomodoro'));
   await page.click('.widget[data-t=tasks] .w-del'); await sleep(150);
   check(!(await kinds()).includes('tasks'), 'a widget can be removed');
   await page.click('.home-add'); await sleep(150);
@@ -658,10 +670,17 @@ await section('home board', async () => {
 
   await page.reload({ waitUntil: 'networkidle0' }); await sleep(300);
   const after = await kinds();
-  check(after.startsWith('clock,hello,photos') && after.split(',').length === 10, 'the board is kept as it was left: ' + after);
+  check(after.startsWith('clock,hello,photos') && after.split(',').length === 11, 'the board is kept as it was left: ' + after);
   check((await text('.widget[data-t=text]')).includes('Repasar integrales') && paused !== '', 'text written on a widget is kept');
   check(Math.abs((await rect('photos')).w - p1.w) < 2, 'sizes are kept too');
-  check(await count('.photo-widget img.photo-now') === 1 && (await text('.view')).includes('Examen de derivadas'), 'the built-in widgets keep working inside the board');
+  check(await cardBg('clock') === 'rgba(0, 0, 0, 0)|none' && (await cardBg('pomodoro')).startsWith('rgb(231, 243, 248)'), 'widget backgrounds are kept');
+  const hi = () => text('.home-hero h1');
+  check(/^Buen[oa]s (días|tardes|noches)$/.test(await hi()), 'with no name the greeting is plain: ' + await hi());
+  await clickText('.side-item', 'Ajustes'); await sleep(200);
+  await page.click('.name-input'); await type('Cristina'); await press('Tab'); await sleep(150);
+  await clickText('.side-item', 'Inicio'); await sleep(300);
+  check(/^Buen[oa]s (días|tardes|noches), Cristina$/.test(await hi()), 'the greeting uses the name written in Ajustes: ' + await hi());
+  check(await count('.photo-widget img.photo-now') === 2 && (await texts('.photo-count')).join('|') === '1 foto|2 fotos' && (await text('.view')).includes('Examen de derivadas'), 'the built-in widgets keep working inside the board, and both photo frames keep their photos');
   await shot('09c-home-board');
 });
 
@@ -684,7 +703,7 @@ await section('backup', async () => {
     await S.importAll(JSON.parse(json));
     return { docs: data.docs.length, drawings: data.drawings.length, blobs: data.blobs.length };
   });
-  check(rt.docs >= 10 && rt.drawings === 3 && rt.blobs === 7, 'backup exports and re-imports everything: ' + JSON.stringify(rt));
+  check(rt.docs >= 10 && rt.drawings === 3 && rt.blobs === 9, 'backup exports and re-imports everything: ' + JSON.stringify(rt));
 });
 
 await section('export and import', async () => {
@@ -827,6 +846,10 @@ await section('cloud sync between two devices', async () => {
   check(await waitFor(async () => inCloud('Tarea desde el otro dispositivo'), 15000), 'what is done on the second device goes up by itself');
   await clickText('.side-item', 'Ajustes'); await sleep(200);
   check((await text('.cloud-box')).includes('Sesión de cris'), 'Ajustes shows the account in use: ' + (await text('.cloud-box')).slice(0, 40));
+  await page.evaluate(async () => { const S = await import('./js/store.js'); S.put({ ...S.settings(), name: '' }); });
+  await clickText('.side-item', 'Inicio'); await sleep(300);
+  check((await text('.home-hero h1')).endsWith(', Cris'), 'with no name written, the greeting uses the account name: ' + await text('.home-hero h1'));
+  await clickText('.side-item', 'Ajustes'); await sleep(200);
   await page.click('.cloud-now');
   await clickText('.side-item', 'Tareas');
   check(await waitFor(async () => (await text('.view')).includes('Tarea desde el otro dispositivo'), 10000), 'and shows up on the first device');

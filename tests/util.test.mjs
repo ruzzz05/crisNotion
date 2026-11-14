@@ -48,3 +48,13 @@ test('greeting depends on the hour', () => {
   assert.equal(greeting(22), 'Buenas noches');
   assert.equal(greeting(3), 'Buenas noches');
 });
+
+test('the greeting names the person when there is a name to use', async () => {
+  const { greetingFor, displayName } = await import('../public/js/util.js');
+  assert.equal(greetingFor(9, 'Cris'), 'Buenos días, Cris');
+  assert.equal(greetingFor(15, ''), 'Buenas tardes');
+  assert.equal(greetingFor(23, 'Cris'), 'Buenas noches, Cris');
+  assert.equal(displayName(' Cristina ', 'cris.05'), 'Cristina', 'the name written in Ajustes comes first');
+  assert.equal(displayName('', 'cris.05'), 'Cris.05', 'otherwise the account name, capitalised');
+  assert.equal(displayName(undefined, ''), '');
+});

@@ -18,6 +18,7 @@ test('normalizeHome keeps only known widgets, with sizes inside their limits and
   assert.equal(out.filter(i => i.t === 'hello').length, 1, 'built-in widgets appear once');
   assert.deepEqual(normalizeHome(undefined, () => 'x').map(i => i.t), defaultHome().map(i => i.t));
   assert.deepEqual(normalizeHome([], () => 'x'), [], 'an emptied board stays empty');
+  assert.equal(normalizeHome([{ id: 'p1', t: 'photos' }, { id: 'p2', t: 'photos', items: ['a'] }], () => 'x').length, 2, 'there can be several frames of changing photos');
 });
 
 test('moveItem puts a widget at a new place among the others', () => {
@@ -73,4 +74,13 @@ test('mmss shows the time left rounding up, so it only reads 00:00 at the end', 
   assert.equal(mmss(1), '00:01');
   assert.equal(mmss(0), '00:00');
   assert.equal(mmss(90 * 60000), '90:00');
+});
+
+test('widgetTint turns the stored background choice into a colour, or nothing for the default card', async () => {
+  const { widgetTint, TINTS } = await import('../public/js/board.js');
+  assert.equal(widgetTint(undefined), null);
+  assert.equal(widgetTint('none'), 'transparent');
+  assert.equal(widgetTint('blue'), 'var(--b-blue)');
+  assert.equal(widgetTint('javascript:alert(1)'), null);
+  assert.ok(TINTS.includes('yellow') && !TINTS.includes('none'));
 });

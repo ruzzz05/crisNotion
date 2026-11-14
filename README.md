@@ -16,7 +16,7 @@ PWA de apuntes para iPhone y iPad: un Notion reducido a lo que hace falta en cla
 - **Icono y portada** por página, favoritos, migas de pan, búsqueda rápida con Ctrl/Cmd+K y papelera.
 - **Dibujo a mano** con Apple Pencil o ratón (presión, subrayador, goma, deshacer) y grosor del trazo con un deslizable. El dedo nunca dibuja: desplaza la página. Se pueden insertar imágenes en el dibujo, moverlas, cambiarles el tamaño desde cualquier esquina y escribir encima.
 - **Fotos** desde la cámara o la galería, reducidas y guardadas en el dispositivo; su tamaño se ajusta arrastrando el tirador del borde.
-- **Inicio es un tablero de widgets:** con «Editar» se mueven arrastrando, se cambian de tamaño desde la esquina (encajan solos en la rejilla), se quitan y se añaden. Hay reloj, pomodoro, texto, imagen, fotos que cambian cada hora, cada 3 horas o una vez al día, páginas recientes, clases de hoy, eventos y tareas.
+- **Inicio es un tablero de widgets:** con «Editar» se mueven arrastrando, se cambian de tamaño desde la esquina (encajan solos en la rejilla), se quitan y se añaden. Hay reloj y pomodoro (con fondo de color o sin fondo), texto, imagen fija, marcos de fotos que cambian cada hora, cada 3 horas o una vez al día (los que quieras), páginas recientes, clases de hoy, eventos y tareas. El saludo usa tu nombre (Ajustes) o el de tu cuenta.
 - **Horario** semanal, **calendario** mensual de exámenes y entregas, y **tareas**.
 - En pantallas táctiles, barra de herramientas sobre el teclado.
 - **Exportar e importar** libros enteros o páginas sueltas (con sus subpáginas, fotos, PDF y dibujos) desde el menú de cada uno; al importar se crea una copia y no se pisa nada.

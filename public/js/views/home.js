@@ -3,8 +3,9 @@
 // The layout is one stored doc ('home'), so it follows the account to other devices.
 import * as S from '../store.js';
 import { h, icon, menu, toast } from '../ui.js';
-import { COLS, WIDGET_SIZES, moveItem, newItem, normalizeHome, spanFor } from '../board.js';
-import { WIDGETS } from '../widgets.js';
+import { COLS, TINTS, WIDGET_SIZES, moveItem, newItem, normalizeHome, spanFor, widgetTint } from '../board.js';
+import { COLOR_NAMES } from '../util.js';
+import { WIDGETS, photoStore } from '../widgets.js';
 import { shrink } from '../image.js';
 
 let editing = false; // survives re-renders of the view
@@ -21,10 +22,23 @@ export function home(root) {
     const el = h('div', { class: 'widget', 'data-id': item.id, 'data-t': item.t, style: `--w:${item.w};--h:${item.h}` },
       h('div', { class: 'w-body' }, w.el),
       h('div', { class: 'w-veil', title: 'Arrastra para mover', onpointerdown: e => startMove(e, item) }),
+      WIDGET_SIZES[item.t].tint && h('button', { class: 'w-color', type: 'button', 'aria-label': 'Fondo de ' + WIDGETS[item.t].name, title: 'Fondo', onclick: e => tintMenu(e.currentTarget, item) }, icon('palette')),
       h('button', { class: 'w-del', type: 'button', 'aria-label': 'Quitar ' + WIDGETS[item.t].name, title: 'Quitar', onclick: () => remove(item) }, icon('x')),
       h('div', { class: 'w-resize', title: 'Arrastra para cambiar el tamaño', onpointerdown: e => startResize(e, item) }));
     live.set(item.id, { el, destroy: w.destroy });
+    paint(item, el);
     return el;
+  }
+
+  /** Background of a widget: its default card, none at all, or a colour. */
+  function paint(item, el = live.get(item.id).el) {
+    const c = widgetTint(item.bg);
+    if (c) { el.dataset.bg = item.bg; el.style.setProperty('--wbg', c); } else { delete el.dataset.bg; el.style.removeProperty('--wbg'); }
+  }
+  function tintMenu(anchor, item) {
+    const pick = (bg, label, swatch) => ({ label, swatch, on: (item.bg || '') === bg, fn: () => { if (bg) item.bg = bg; else delete item.bg; paint(item); save(); } });
+    menu(anchor, [pick('', 'Predeterminado', 'background:var(--card)'), pick('none', 'Sin fondo'), { sep: true },
+      ...TINTS.map(c => pick(c, (COLOR_NAMES[c] || c).replace(/^./, x => x.toUpperCase()), `background:var(--b-${c})`))]);
   }
   /** Put the elements in the order of `items` without touching `still`: moving the element being dragged would end the drag. */
   function order(still) {
@@ -43,6 +57,7 @@ export function home(root) {
     live.get(item.id)?.el.remove();
     live.delete(item.id);
     if (item.t === 'image' && item.blob) S.delBlob(item.blob);
+    if (item.t === 'photos') { const store = photoStore(item); store.get().items.forEach(S.delBlob); store.drop(); }
     save();
   }
 
