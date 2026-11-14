@@ -153,6 +153,116 @@ export function leaveRow(blocks, i) {
   return normalizeRows([...rest.slice(0, end - 1), b, ...rest.slice(end - 1)]);
 }
 
+// ---------- PDF margins: blocks placed to the left or right of one sheet ----------
+// Stored on the PDF block as side[sheet number][l | r] = [{id, t: 'text' | 'image' | 'draw', …}].
+
+export const sideList = (block, n, side) => block.side?.[n]?.[side] || [];
+
+export function sideAdd(block, n, side, item) {
+  ((block.side ??= {})[n] ??= {})[side] = [...sideList(block, n, side), item];
+  return item;
+}
+
+/** Removes and returns the item; empty containers are dropped so the block stays small. */
+export function sideRemove(block, n, side, id) {
+  const list = sideList(block, n, side), item = list.find(x => x.id === id);
+  if (!item) return null;
+  const rest = list.filter(x => x !== item);
+  if (rest.length) block.side[n][side] = rest; else delete block.side[n][side];
+  if (!Object.keys(block.side[n]).length) delete block.side[n];
+  if (!Object.keys(block.side).length) delete block.side;
+  return item;
+}
+
+/** Which margins hold something on any sheet, so every sheet can keep the same width. */
+export function sidesUsed(block) {
+  const used = { l: false, r: false };
+  for (const s of Object.values(block.side || {})) for (const k of ['l', 'r']) if (s[k]?.length) used[k] = true;
+  return used;
+}
+
+/** Stored files and drawings that belong to a PDF block and must go when it is deleted. */
+export function pdfAssets(block) {
+  const blobs = [block.blob], drawings = [];
+  for (let n = 1; n <= (block.n || 0); n++) drawings.push(`${block.id}:${n}`);
+  for (const s of Object.values(block.side || {})) for (const k of ['l', 'r']) for (const it of s[k] || []) {
+    if (it.t === 'image') blobs.push(it.blob);
+    if (it.t === 'draw') drawings.push(it.id);
+  }
+  return { blobs, drawings };
+}
+
+/** Stored files and drawings used by a page: its cover, background and blocks. */
+export function pageAssets(page) {
+  const blobs = [], drawings = [];
+  for (const k of ['cover', 'bg']) if (page[k]?.startsWith('img:')) blobs.push(page[k].slice(4));
+  for (const b of page.blocks || []) {
+    if (b.t === 'image') blobs.push(b.blob);
+    if (b.t === 'draw') drawings.push(b.id);
+    if (b.t === 'pdf') { const own = pdfAssets(b); blobs.push(...own.blobs); drawings.push(...own.drawings); }
+  }
+  return { blobs, drawings };
+}
+
+// ---------- Exported books and pages ----------
+
+/**
+ * Copy of an exported bundle {root, docs, drawings, blobs} in which every id is new, so importing it
+ * never overwrites what is already there (importing twice gives two copies). Links between the pieces
+ * are kept; a page whose parent is not in the bundle becomes a top-level page.
+ */
+export function remapBundle(data, newId) {
+  const ids = new Map(), inside = new Set(data.docs.map(d => d.id));
+  const m = id => { if (!ids.has(id)) ids.set(id, newId()); return ids.get(id); };
+  const img = v => (typeof v === 'string' && v.startsWith('img:') ? 'img:' + m(v.slice(4)) : v);
+  const docs = data.docs.map(src => {
+    const d = structuredClone(src);
+    d.id = m(src.id);
+    if (d.type !== 'page') return d;
+    d.bookId = inside.has(src.bookId) ? m(src.bookId) : null;
+    d.parentId = inside.has(src.parentId) ? m(src.parentId) : null;
+    delete d.fav;
+    delete d.deleted;
+    if (d.cover) d.cover = img(d.cover);
+    if (d.bg) d.bg = img(d.bg);
+    for (const b of d.blocks || []) {
+      b.id = m(b.id);
+      if (b.row) b.row = m(b.row);
+      if (b.blob) b.blob = m(b.blob);
+      if (b.pageId) b.pageId = m(b.pageId);
+      for (const s of Object.values(b.side || {})) for (const k of ['l', 'r']) for (const it of s[k] || []) {
+        it.id = m(it.id);
+        if (it.blob) it.blob = m(it.blob);
+      }
+    }
+    return d;
+  });
+  const drawings = (data.drawings || []).map(src => {
+    const d = structuredClone(src), at = src.id.indexOf(':'); // "block:sheet" for the ink of a PDF sheet
+    d.id = at < 0 ? m(src.id) : m(src.id.slice(0, at)) + src.id.slice(at);
+    for (const pic of d.images || []) pic.blob = m(pic.blob);
+    return d;
+  });
+  return { ...data, root: m(data.root), docs, drawings, blobs: (data.blobs || []).map(b => ({ ...b, id: m(b.id) })) };
+}
+
+// ---------- Themes ----------
+
+export const THEMES = ['white', 'beige', 'dark', 'system'];
+/** The theme to paint for a stored choice: white unless something else was chosen; 'system' follows the device. */
+export function resolveTheme(choice, systemDark) {
+  if (choice === 'system') return systemDark ? 'dark' : 'white';
+  return THEMES.includes(choice) ? choice : 'white';
+}
+
+// ---------- Photo widget ----------
+
+const period = (ms, hours, tzOffsetMin) => Math.floor((ms - tzOffsetMin * 60e3) / (hours * 3600e3));
+/** Which of `n` photos to show now; it moves on once per `hours`, counted in local time. -1 without photos. */
+export const photoIndex = (ms, hours, n, tzOffsetMin = 0) => (n > 0 ? ((period(ms, hours, tzOffsetMin) % n) + n) % n : -1);
+/** Moment (ms) when the next photo is due. */
+export const nextSwap = (ms, hours, tzOffsetMin = 0) => (period(ms, hours, tzOffsetMin) + 1) * hours * 3600e3 + tzOffsetMin * 60e3;
+
 // ---------- Slash menu ----------
 
 export const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');

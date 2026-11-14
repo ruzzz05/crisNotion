@@ -8,6 +8,10 @@ import { COLORS } from './util.js';
 const docs = new Map();
 const urls = new Map();
 let onError = () => {};
+// Cloud sync listens here: every change made on this device is reported as (kind, id, 'put' | 'del'),
+// with kind 'd' for a doc, 'i' for the ink of a drawing and 'f' for a stored file.
+let changed = () => {};
+export const watch = fn => { changed = fn; };
 
 export const uid = () => crypto.randomUUID?.() ??
   Date.now().toString(36) + Array.from(crypto.getRandomValues(new Uint8Array(10)), b => b.toString(36)).join('');
@@ -33,12 +37,14 @@ export function put(doc) {
   doc.updatedAt = Date.now();
   docs.set(doc.id, doc);
   db.put('docs', doc).catch(onError);
+  changed('d', doc.id, 'put');
   return doc;
 }
 
 export function remove(id) {
   docs.delete(id);
   db.del('docs', id).catch(onError);
+  changed('d', id, 'del');
 }
 
 export function trash(id) {
@@ -62,7 +68,7 @@ export function purge(id) {
     for (const b of d.blocks || []) {
       if (b.t === 'draw') delDrawing(b.id);
       if (b.t === 'image') delBlob(b.blob);
-      if (b.t === 'pdf') { delBlob(b.blob); for (let n = 1; n <= (b.n || 0); n++) delDrawing(`${b.id}:${n}`); }
+      if (b.t === 'pdf') { const own = M.pdfAssets(b); own.blobs.forEach(delBlob); own.drawings.forEach(delDrawing); }
     }
     if (d.cover?.startsWith('img:')) delBlob(d.cover.slice(4));
     if (d.bg?.startsWith('img:')) delBlob(d.bg.slice(4));
@@ -94,6 +100,7 @@ export async function saveBlob(blob) {
   const id = uid();
   await db.put('blobs', { id, blob });
   urls.set(id, URL.createObjectURL(blob));
+  changed('f', id, 'put');
   return id;
 }
 export async function blobURL(id) {
@@ -108,21 +115,57 @@ export const getBlob = async id => (await db.get('blobs', id).catch(() => null))
 export function delBlob(id) {
   if (urls.has(id)) { URL.revokeObjectURL(urls.get(id)); urls.delete(id); }
   db.del('blobs', id).catch(onError);
+  changed('f', id, 'del');
 }
 
 // Drawings
 export const getDrawing = id => db.get('drawings', id);
-export const putDrawing = d => db.put('drawings', { ...d, updatedAt: Date.now() }).catch(onError);
+export const putDrawing = d => db.put('drawings', { ...d, updatedAt: Date.now() }).then(() => changed('i', d.id, 'put')).catch(onError);
 /** Deletes a drawing together with the pictures placed on it. */
 export async function delDrawing(id) {
   try {
-    for (const m of (await db.get('drawings', id))?.images || []) delBlob(m.blob);
+    const d = await db.get('drawings', id);
+    if (!d) return; // a sheet nobody drew on
+    for (const m of d.images || []) delBlob(m.blob);
     await db.del('drawings', id);
+    changed('i', id, 'del');
   } catch (e) { onError(e); }
 }
 
+// ---------- What cloud sync needs: apply changes that come from another device, without reporting them back ----------
+
+/** Updates the doc in place, so a view holding it keeps a valid reference. */
+export async function applyDoc(doc) {
+  const cur = docs.get(doc.id);
+  if (cur) { for (const k of Object.keys(cur)) delete cur[k]; Object.assign(cur, doc); } else docs.set(doc.id, doc);
+  await db.put('docs', docs.get(doc.id));
+}
+export async function dropDoc(id) { docs.delete(id); await db.del('docs', id); }
+export const applyDrawing = d => db.put('drawings', d);
+export const dropDrawing = id => db.del('drawings', id);
+export const applyBlob = (id, blob) => db.put('blobs', { id, blob });
+export async function dropBlob(id) {
+  if (urls.has(id)) { URL.revokeObjectURL(urls.get(id)); urls.delete(id); }
+  await db.del('blobs', id);
+}
+/** Everything stored here, as [kind, id, changed at]. */
+export async function localKeys() {
+  return [
+    ...[...docs.values()].map(d => ['d', d.id, d.updatedAt || 1]),
+    ...(await db.all('drawings')).map(d => ['i', d.id, d.updatedAt || 1]),
+    ...(await db.keys('blobs')).map(id => ['f', id, 1]),
+  ];
+}
+/** Erases everything on this device. */
+export async function wipe() {
+  docs.clear();
+  for (const u of urls.values()) URL.revokeObjectURL(u);
+  urls.clear();
+  for (const name of ['docs', 'drawings', 'blobs']) await db.clear(name);
+}
+
 // Backup
-const toDataURL = blob => new Promise((res, rej) => {
+export const toDataURL = blob => new Promise((res, rej) => {
   const r = new FileReader();
   r.onload = () => res(r.result);
   r.onerror = () => rej(r.error);
@@ -135,14 +178,68 @@ export async function exportAll() {
   return { app: 'cuaderno', version: 2, exportedAt: new Date().toISOString(), docs: [...docs.values()], drawings: await db.all('drawings'), blobs };
 }
 
+/** A book with all its pages, or a page with its subpages, plus the photos, PDFs and drawings they use. */
+export async function exportBundle(id) {
+  const root = docs.get(id);
+  if (root?.type !== 'book' && root?.type !== 'page') throw new Error('nothing to export');
+  const list = root.type === 'book' ? pages().filter(p => p.bookId === id) : [root, ...descendants(id).filter(p => livePage(p.id))];
+  const blobIds = new Set(), drawings = [], blobs = [];
+  for (const p of list) {
+    const own = M.pageAssets(p);
+    own.blobs.forEach(b => blobIds.add(b));
+    for (const did of own.drawings) {
+      const d = await db.get('drawings', did);
+      if (!d) continue; // a sheet nobody wrote on
+      drawings.push(d);
+      for (const pic of d.images || []) blobIds.add(pic.blob);
+    }
+  }
+  for (const bid of blobIds) {
+    const rec = await db.get('blobs', bid);
+    if (rec) blobs.push({ id: bid, data: await toDataURL(rec.blob) });
+  }
+  return {
+    app: 'cuaderno', version: 2, kind: root.type, root: id, name: root.name || root.title || '', exportedAt: new Date().toISOString(),
+    docs: root.type === 'book' ? [root, ...list] : list, drawings, blobs,
+  };
+}
+
+const BLOB_DATA = /^data:(image[/]|application[/]pdf)/;
+
+/** Adds an exported book as a new book, or an exported page to `bookId`. Returns the new book or page. */
+export async function importBundle(data, { bookId = null } = {}) {
+  const bad = () => new Error('El archivo no es un libro ni una página de Cuaderno.');
+  if (data?.app !== 'cuaderno' || !['book', 'page'].includes(data.kind) || !Array.isArray(data.docs)) throw bad();
+  const list = data.docs.filter(d => d && typeof d.id === 'string' && (d.type === 'page' || (d.type === 'book' && d.id === data.root && data.kind === 'book')));
+  if (!list.some(d => d.id === data.root && d.type === data.kind)) throw bad();
+  const out = M.remapBundle({
+    ...data, docs: list,
+    drawings: (data.drawings || []).filter(d => d && typeof d.id === 'string'),
+    blobs: (data.blobs || []).filter(b => b && typeof b.id === 'string' && typeof b.data === 'string' && BLOB_DATA.test(b.data)),
+  }, uid);
+  if (data.kind === 'page') {
+    if (!liveBook(bookId)) throw new Error('missing book');
+    for (const d of out.docs) d.bookId = bookId;
+  }
+  for (const b of out.blobs) { await db.put('blobs', { id: b.id, blob: await (await fetch(b.data)).blob() }); changed('f', b.id, 'put'); }
+  for (const d of out.drawings) { await db.put('drawings', d); changed('i', d.id, 'put'); }
+  for (const d of out.docs) {
+    if (d.id === out.root) delete d.order; // lands after what is already there
+    put(d);
+  }
+  return docs.get(out.root);
+}
+
 export async function importAll(data) {
   if (data?.app !== 'cuaderno' || !Array.isArray(data.docs)) throw new Error('El archivo no es una copia de Cuaderno.');
   const list = data.docs.filter(d => d && typeof d.id === 'string' && typeof d.type === 'string');
   M.migrate(list);
-  for (const d of list) { docs.set(d.id, d); await db.put('docs', d); }
-  for (const d of data.drawings || []) if (d?.id) await db.put('drawings', d);
-  for (const b of data.blobs || []) {
-    if (!b?.id || typeof b.data !== 'string' || !/^data:(image[/]|application[/]pdf)/.test(b.data)) continue;
-    await db.put('blobs', { id: b.id, blob: await (await fetch(b.data)).blob() });
+  // A restored copy counts as changed now, so with cloud sync it is what the other devices get.
+  for (const d of data.blobs || []) {
+    if (!d?.id || typeof d.data !== 'string' || !BLOB_DATA.test(d.data)) continue;
+    await db.put('blobs', { id: d.id, blob: await (await fetch(d.data)).blob() });
+    changed('f', d.id, 'put');
   }
+  for (const d of data.drawings || []) if (d?.id) { await db.put('drawings', d); changed('i', d.id, 'put'); }
+  for (const d of list) { docs.set(d.id, d); await db.put('docs', d); changed('d', d.id, 'put'); }
 }

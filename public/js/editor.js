@@ -3,11 +3,11 @@
 // Every structural change edits `page.blocks` and then calls sync(), which reconciles the DOM by block id.
 import * as S from './store.js';
 import { h, icon, app, menu, pop, placeNear, toast } from './ui.js';
-import { COLORS, COLOR_NAMES, esc, tint } from './util.js';
-import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, rangeEnd, rowOf, rowSizes } from './model.js';
+import { COLORS, COLOR_NAMES, esc, sanitize } from './util.js';
+import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, pdfAssets, rangeEnd, rowOf, rowSizes } from './model.js';
 import { mountDrawing } from './drawing.js';
-import { shrink } from './image.js';
-import { mountPdf, pageInkId } from './pdf.js';
+import { imageBox, shrink } from './image.js';
+import { mountPdf } from './pdf.js';
 
 const TEXT = new Set(['p', 'h1', 'h2', 'h3', 'bullet', 'num', 'todo', 'toggle', 'quote', 'callout', 'code']);
 const LIST = new Set(['bullet', 'num', 'todo']);
@@ -36,31 +36,10 @@ const PLACEHOLDER = {
 };
 const SHORTCUTS = { '#': 'h1', '##': 'h2', '###': 'h3', '-': 'bullet', '*': 'bullet', '+': 'bullet', '[]': 'todo', '1.': 'num', '>': 'toggle', '"': 'quote' };
 const HIGHLIGHTS = [['Amarillo', 'rgba(255, 212, 0, 0.4)'], ['Verde', 'rgba(60, 200, 120, 0.35)'], ['Azul', 'rgba(35, 131, 226, 0.3)'], ['Rosa', 'rgba(255, 90, 170, 0.3)'], ['Rojo', 'rgba(255, 80, 80, 0.32)']];
-const ALLOWED = new Set(['B', 'I', 'U', 'S', 'STRONG', 'EM', 'BR', 'SPAN', 'MARK', 'STRIKE', 'FONT', 'DIV', 'CODE', 'A']);
 const COARSE = matchMedia('(pointer: coarse)');
 
 const mk = (t, extra = {}) => ({ id: S.uid(), t, html: '', indent: 0, ...extra });
 const ind = b => b.indent || 0;
-
-/** Keep only inline formatting; stored HTML may come from an imported backup. */
-function sanitize(html) {
-  const tpl = document.createElement('template');
-  tpl.innerHTML = html;
-  for (const el of [...tpl.content.querySelectorAll('*')]) {
-    if (!ALLOWED.has(el.tagName)) {
-      if (/^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|LINK|META)$/.test(el.tagName)) el.remove();
-      else el.replaceWith(...el.childNodes);
-      continue;
-    }
-    const bg = el.style?.backgroundColor;
-    const href = el.tagName === 'A' ? el.getAttribute('href') : null;
-    for (const a of [...el.attributes]) el.removeAttribute(a.name);
-    if (bg && bg !== 'transparent') el.style.backgroundColor = bg;
-    if (href && /^(https?:|mailto:)/i.test(href)) { el.setAttribute('href', href); el.setAttribute('rel', 'noopener noreferrer'); }
-  }
-  return tpl.innerHTML;
-}
-
 
 function place(c, atEnd) {
   c.focus();
@@ -135,9 +114,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     } else if (b.t === 'divider') {
       el.append(h('div', { class: 'hr', role: 'separator' }));
     } else if (b.t === 'image') {
-      const img = h('img', { alt: 'Foto', style: `width:${b.w || 100}%`, onclick: e => blockMenu(b.id, e.currentTarget) });
-      S.blobURL(b.blob).then(u => { if (u) img.src = u; else img.replaceWith(h('p', { class: 'muted' }, 'Esta foto no está en este dispositivo.')); });
-      el.append(h('figure', null, img));
+      el.append(h('figure', null, imageBox({ blob: b.blob, w: b.w || 100, onResize: w => { b.w = w; touch(); }, onClick: e => blockMenu(b.id, e.currentTarget) })));
     } else if (b.t === 'draw') {
       const host = h('div', { class: 'draw' });
       el.append(host);
@@ -205,7 +182,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     const b = page.blocks[i];
     if (b.t === 'draw' || b.t === 'pdf') { cleanups.get(id)?.(); cleanups.delete(id); }
     if (b.t === 'draw') S.delDrawing(id);
-    if (b.t === 'pdf') { S.delBlob(b.blob); for (let n = 1; n <= (b.n || 0); n++) S.delDrawing(pageInkId(id, n)); }
+    if (b.t === 'pdf') { const own = pdfAssets(b); own.blobs.forEach(S.delBlob); own.drawings.forEach(S.delDrawing); }
     if (b.t === 'image' && !page.blocks.some(x => x !== b && x.blob === b.blob)) S.delBlob(b.blob);
     if (b.t === 'page' && S.livePage(b.pageId)) S.trash(b.pageId);
     page.blocks.splice(i, 1);
@@ -330,7 +307,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
   function blockMenu(id, anchor) {
     const b = B(id), i = I(id);
     if (!b) return;
-    const size = (label, w) => ({ label, on: (b.w || 100) === w, fn: () => { b.w = w; els.get(id).querySelector('img').style.width = w + '%'; touch(); } });
+    const size = (label, w) => ({ label, on: (b.w || 100) === w, fn: () => { b.w = w; els.get(id).querySelector('.img-box')?.setWidth(w); touch(); } });
     const colour = (key, label, swatch) => ({ label, swatch, on: (b.color || '') === key, fn: () => { if (key) b.color = key; else delete b.color; sync(); touch(); } });
     const swap = dir => {
       const to = dir < 0 ? (() => { let j = i - 1; while (j > 0 && ind(page.blocks[j]) > ind(b)) j--; return j; })() : rangeEnd(page.blocks, rangeEnd(page.blocks, i));

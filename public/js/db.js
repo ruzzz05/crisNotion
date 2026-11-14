@@ -30,4 +30,6 @@ export const db = {
   get: (store, id) => run(store, 'readonly', s => s.get(id)),
   put: (store, value) => run(store, 'readwrite', s => s.put(value)),
   del: (store, id) => run(store, 'readwrite', s => s.delete(id)),
+  keys: store => run(store, 'readonly', s => s.getAllKeys()),
+  clear: store => run(store, 'readwrite', s => s.clear()),
 };

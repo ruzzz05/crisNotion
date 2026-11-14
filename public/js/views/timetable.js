@@ -62,7 +62,7 @@ export function timetable(root) {
 
   root.classList.add('db');
   root.append(
-    viewHead('🗓️', 'Horario', [h('button', { class: 'btn primary', type: 'button', onclick: () => slotForm({ day: today < nDays ? today : 0 }) }, icon('plus'), 'Clase')],
+    viewHead(null, 'Horario', [h('button', { class: 'btn primary', type: 'button', onclick: () => slotForm({ day: today < nDays ? today : 0 }) }, icon('plus'), 'Clase')],
       slots.length ? null : 'Toca un hueco de la cuadrícula para añadir una clase.'),
     h('div', { class: 'tt', style: `--days:${nDays};--h:${y(to)}px;--hour:${HOUR}px` },
       h('div', { class: 'tt-corner' }),

@@ -11,6 +11,9 @@ import { calendar } from './views/calendar.js';
 import { tasks } from './views/tasks.js';
 import { trash } from './views/trash.js';
 import { settings } from './views/settings.js';
+import { exportItem, importFile } from './transfer.js';
+import { FONTS } from './theme.js';
+import { cloud } from './cloud.js';
 
 const VIEWS = {
   home: { title: 'Inicio', icon: 'home', render: home },
@@ -33,7 +36,13 @@ const topbar = h('div', { class: 'topbar' });
 const view = h('div', { class: 'view' });
 const scroll = h('div', { class: 'scroll' }, view);
 const scrim = h('div', { class: 'scrim', onclick: () => setSide(false) });
-root.append(sidebar, scrim, h('div', { class: 'main' }, tabstrip, topbar, scroll));
+// One file picker for "import a page into this book", kept outside the sidebar because that is redrawn all the time.
+let importInto = null;
+const importHere = h('input', {
+  class: 'import-here-input', type: 'file', accept: 'application/json,.json', hidden: true,
+  onchange: () => { const f = importHere.files[0]; importHere.value = ''; if (f && importInto) importFile(f, { bookId: importInto }); },
+});
+root.append(sidebar, scrim, h('div', { class: 'main' }, tabstrip, topbar, scroll), importHere);
 
 let tabs = T.restore(ls.get('tabs', null));
 let expanded = new Set(JSON.parse(ls.get('expanded', '[]')));
@@ -76,9 +85,10 @@ function pageMenu(p, anchor) {
     { label: 'Abrir en una pestaña nueva', icon: 'tab', fn: () => go('page/' + p.id, { newTab: true }) },
     { label: 'Añadir una subpágina', icon: 'plus', fn: () => addPage({ bookId: p.bookId, parentId: p.id }) },
     { sep: true },
-    { label: 'Fuente', icon: 'type', sub: [['', 'Predeterminada'], ['serif', 'Serif'], ['mono', 'Mono']].map(([k, label]) => ({ label, on: (p.font || '') === k, fn: () => { p.font = k; S.put(p); render(); } })) },
+    { label: 'Fuente', icon: 'type', sub: [['', 'La de la aplicación'], ...FONTS].map(([k, label]) => ({ label, on: (p.font || '') === k, fn: () => { p.font = k; S.put(p); render(); } })) },
     { label: 'Ancho completo', icon: 'width', on: !!p.wide, fn: () => { p.wide = !p.wide; S.put(p); render(); } },
     top && { label: 'Color en el horario', icon: 'palette', sub: COLORS.map(c => ({ label: COLOR_NAMES[c][0].toUpperCase() + COLOR_NAMES[c].slice(1), swatch: tint(c), on: p.color === c, fn: () => { p.color = c; S.put(p); chrome(); } })) },
+    { label: 'Exportar página', icon: 'down', fn: () => exportItem(p.id) },
     { sep: true },
     { label: 'Eliminar', icon: 'trash', danger: true, fn: () => deletePage(p) },
   ]);
@@ -146,6 +156,9 @@ function drawSidebar() {
           h('button', {
             class: 'tree-btn book-more', type: 'button', 'aria-label': 'Opciones del libro', onclick: e => menu(e.currentTarget, [
               { label: 'Renombrar', icon: 'pen', fn: () => bookForm(b) },
+              { label: 'Exportar libro', icon: 'down', fn: () => exportItem(b.id) },
+              { label: 'Importar página aquí', icon: 'up', fn: () => { importInto = b.id; importHere.click(); } },
+              { sep: true },
               {
                 label: 'Eliminar libro', icon: 'trash', danger: true, fn: async () => {
                   if (!await confirmDialog(`¿Enviar «${b.name}» y todas sus páginas a la papelera?`)) return;
@@ -159,7 +172,9 @@ function drawSidebar() {
         S.children({ bookId: b.id }).flatMap(p => treeRow(p, 0, current)),
         !S.children({ bookId: b.id }).length && h('div', { class: 'tree-empty', style: '--depth:0' }, 'Añade una asignatura con +'))),
       h('button', { class: 'side-item side-new-book', type: 'button', onclick: () => bookForm() }, icon('plus'), h('span', null, 'Nuevo libro'))),
-    h('nav', { class: 'side-foot' }, item('trash'), item('settings')));
+    h('nav', { class: 'side-foot' },
+      cloud.label() && h('button', { class: 'side-item side-sync', type: 'button', title: 'Cuenta y sincronización', onclick: () => go('settings') }, icon('cloud'), h('span', { class: 'sync-label' }, cloud.label())),
+      item('trash'), item('settings')));
 }
 
 // ---------- Tabs and top bar ----------
@@ -270,6 +285,7 @@ function finder() {
 async function boot() {
   try {
     await S.load(() => toast('No se ha podido guardar. Comprueba el espacio libre del dispositivo.'));
+    cloud.start();
   } catch (e) {
     console.error(e);
     view.append(h('div', { class: 'empty' }, h('p', null, 'No se puede abrir el almacenamiento del dispositivo. Si estás en navegación privada, sal de ella y vuelve a abrir Cuaderno.')));
@@ -278,6 +294,7 @@ async function boot() {
   navigator.storage?.persist?.();
   if (ls.get('side', '1') === '0') root.classList.add('side-closed');
   Object.assign(app, { refresh: () => render(), chrome, go, route });
+  cloud.onStatus(() => { const el = sidebar.querySelector('.sync-label'); if (el) el.textContent = cloud.label(); else drawSidebar(); });
   addEventListener('hashchange', () => {
     const r = decodeURIComponent(location.hash.replace(/^#\/?/, '')) || 'home';
     if (r !== route()) go(r);

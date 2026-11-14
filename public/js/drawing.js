@@ -1,25 +1,25 @@
 // Handwriting. Strokes are stored as vectors in a 1000-unit-wide coordinate space,
 // so a drawing made on an iPad scales cleanly to an iPhone and to any pixel density.
-// Only a pencil or a mouse draws (pencil pressure sets line width). Fingers always scroll the page.
+// Only a pencil or a mouse draws (pencil pressure varies the line width around the size picked on the slider).
+// Fingers always scroll the page.
 //
 // Two pieces, so one toolbar can drive many sheets (a PDF has one sheet per page):
-//   mountToolbar(bar, opts)  – tool, colour and size buttons; the choice is shared by every sheet
+//   mountToolbar(bar, opts)  – tool and colour buttons and the thickness slider; the choice is shared by every sheet
 //   mountSheet(stage, opts)  – one inkable surface, optionally with movable pictures under the ink
 import * as S from './store.js';
 import { h, icon, toast } from './ui.js';
-import { bottomOf, hitImage, placeImage, resizeImage } from './sheet.js';
+import { STROKE, bottomOf, hitImage, placeImage, resizeFrom, strokeSize } from './sheet.js';
 import { shrink } from './image.js';
+import { isDark, onTheme } from './theme.js';
 
 export const W = 1000;
 const INK = ['ink', 'blue', 'red', 'green', 'orange', 'purple', 'yellow'];
-const SIZES = [2, 4, 7];
 const BGS = ['grid', 'lines', 'plain'];
 const BG_LABEL = { grid: 'Cuadrícula', lines: 'Rayas', plain: 'Liso' };
 
-const dark = matchMedia('(prefers-color-scheme: dark)');
 /** `light` forces the light-theme inks, for surfaces that are always white such as PDF pages. */
 const palette = (light = false) => {
-  const d = !light && dark.matches;
+  const d = !light && isDark();
   return {
     ink: d ? '#E6E6E4' : '#37352F', blue: d ? '#5B9DF0' : '#2383E2', red: '#E5484D',
     green: '#2F9E44', orange: '#F08C00', purple: d ? '#A78BFA' : '#7048E8', yellow: '#FFD43B',
@@ -27,14 +27,18 @@ const palette = (light = false) => {
 };
 
 // Tool choice is shared by every sheet and remembered between visits.
-const prefs = { tool: 'pen', color: 'ink', size: 4 };
+const prefs = { tool: 'pen', color: 'ink', size: STROKE.initial };
 try { Object.assign(prefs, JSON.parse(localStorage.getItem('cuaderno:draw') || '{}')); } catch { /* storage blocked */ }
 if (prefs.tool === 'move') prefs.tool = 'pen';
+prefs.size = strokeSize(prefs.size);
 const bars = new Set();
+const overlays = new Set(); // per-sheet redraw of the picture handles, which only show with the move tool
+const remember = () => { try { localStorage.setItem('cuaderno:draw', JSON.stringify(prefs)); } catch { /* storage blocked */ } };
 function setPrefs(patch) {
   Object.assign(prefs, patch);
-  try { localStorage.setItem('cuaderno:draw', JSON.stringify(prefs)); } catch { /* storage blocked */ }
+  remember();
   refreshBars();
+  for (const fn of overlays) fn();
 }
 const refreshBars = () => { for (const draw of bars) draw(); };
 
@@ -83,8 +87,19 @@ export function mountToolbar(bar, { sheet = () => null, images = false, extra = 
     class: 'draw-file', type: 'file', accept: 'image/*', hidden: true,
     onchange: () => { const f = file.files[0]; file.value = ''; if (f) sheet()?.addImage(f); },
   });
+  // The slider is built once: replacing it while it is being dragged would cut the drag short.
+  const dot = h('span', { class: 'dot ink' });
+  const range = h('input', {
+    class: 'stroke-range', type: 'range', min: STROKE.min, max: STROKE.max, step: STROKE.step, 'aria-label': 'Grosor del trazo', title: 'Grosor del trazo',
+    oninput: () => { prefs.size = strokeSize(range.value); remember(); showSize(); },
+    onchange: () => setPrefs({ size: strokeSize(range.value) }),
+  });
+  const stroke = h('span', { class: 'stroke' }, h('span', { class: 'stroke-dot', 'aria-hidden': 'true' }, dot), range);
+  const showSize = () => { dot.style.width = dot.style.height = 3 + prefs.size * 1.3 + 'px'; };
   const draw = () => {
     const colors = palette();
+    range.value = prefs.size;
+    showSize();
     const tool = (t, ic, label) => btn(label, icon(ic), () => {
       const patch = { tool: t };
       if (t === 'hl' && prefs.color === 'ink') patch.color = 'yellow';
@@ -97,7 +112,7 @@ export function mountToolbar(bar, { sheet = () => null, images = false, extra = 
       h('span', { class: 'tb-sep' }),
       ...INK.map(c => btn('Color ' + c, h('span', { class: 'dot', style: `background:${colors[c]}` }), () => setPrefs({ color: c, tool: prefs.tool === 'eraser' || prefs.tool === 'move' ? 'pen' : prefs.tool }), prefs.color === c, 'color')),
       h('span', { class: 'tb-sep' }),
-      ...SIZES.map((s, i) => btn(['Trazo fino', 'Trazo medio', 'Trazo grueso'][i], h('span', { class: 'dot ink', style: `width:${4 + i * 4}px;height:${4 + i * 4}px` }), () => setPrefs({ size: s }), prefs.size === s)),
+      stroke,
       h('span', { class: 'tb-sep' }),
       btn('Deshacer', icon('undo'), () => sheet()?.undo()),
       btn('Rehacer', icon('redo'), () => sheet()?.redo()),
@@ -107,9 +122,9 @@ export function mountToolbar(bar, { sheet = () => null, images = false, extra = 
       ...extra(), file].filter(Boolean));
   };
   bars.add(draw);
-  dark.addEventListener('change', draw);
+  const offTheme = onTheme(draw);
   draw();
-  return () => { bars.delete(draw); dark.removeEventListener('change', draw); };
+  return () => { bars.delete(draw); offTheme(); };
 }
 
 /**
@@ -117,9 +132,10 @@ export function mountToolbar(bar, { sheet = () => null, images = false, extra = 
  * opts.height()      – sheet height in units; opts.setHeight(h) present = the sheet can grow
  * opts.images        – allow pictures under the ink
  * opts.light         – always use light-theme ink colours
+ * opts.units         – width of the sheet in units (1000 by default; narrow sheets use fewer so lines keep their weight)
  * opts.onActive(api) – called when the sheet is drawn on (lets a shared toolbar target it)
  */
-export function mountSheet(stage, { id, height, setHeight = null, images: allowImages = false, light = false, onActive = () => {} }) {
+export function mountSheet(stage, { id, height, setHeight = null, images: allowImages = false, light = false, units = W, onActive = () => {} }) {
   let strokes = [], undo = [], redo = [], images = [], selected = null;
   let cur = null, pid = null, pan = null, erasing = false, erased = false, drag = null, rect = null;
   let scale = 1, width = 0, saveTimer = 0, dead = false;
@@ -128,7 +144,9 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
   const base = h('canvas', { class: 'draw-base' });
   const live = h('canvas', { class: 'draw-live', 'aria-label': 'Zona de dibujo' });
   stage.classList.add('draw-stage');
-  stage.append(layer, base, live);
+  // Frame with a handle on each corner around the selected picture.
+  const frame = h('div', { class: 'draw-sel', hidden: true }, ['nw', 'ne', 'sw', 'se'].map(c => h('span', { class: 'draw-grip ' + c })));
+  stage.append(layer, base, live, frame);
   const bctx = base.getContext('2d'), lctx = live.getContext('2d');
   const imgEls = new Map();
 
@@ -164,13 +182,17 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
       el.classList.toggle('sel', m.id === selected);
     }
     for (const [mid, el] of imgEls) if (!images.some(m => m.id === mid)) { el.remove(); imgEls.delete(mid); }
+    const m = prefs.tool === 'move' && images.find(x => x.id === selected);
+    frame.hidden = !m;
+    if (m) frame.style.cssText = `left:${m.x * scale}px;top:${m.y * scale}px;width:${m.w * scale}px;height:${m.h * scale}px`;
   }
+  overlays.add(layout);
 
   function fit(force) {
     const w = stage.clientWidth;
     if (!w || (w === width && !force)) return;
     width = w;
-    scale = w / W;
+    scale = w / units;
     const hpx = Math.round(height() * scale), dpr = devicePixelRatio || 1;
     stage.style.height = hpx + 'px';
     for (const cv of [base, live]) { cv.width = Math.round(w * dpr); cv.height = Math.round(hpx * dpr); }
@@ -222,7 +244,7 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
     onActive(api);
     if (prefs.tool === 'move' && allowImages) {
       // Any pointer, fingers included, can move pictures; a finger on empty paper still scrolls.
-      const hit = hitImage(images, ...xy(e));
+      const hit = hitImage(images, ...xy(e), Math.max(32, 26 / scale)); // handles stay easy to grab on small screens
       select(hit ? images[hit.index].id : null);
       if (hit) { e.preventDefault(); pid = e.pointerId; drag = { ...hit, start: xy(e), orig: { ...images[hit.index] } }; return; }
     }
@@ -245,8 +267,9 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
     if (e.pointerId !== pid) return;
     if (drag) {
       const [x, y] = xy(e), dx = x - drag.start[0], dy = y - drag.start[1], o = drag.orig;
-      images[drag.index] = drag.mode === 'resize' ? resizeImage(o, o.w + dx, W)
-        : { ...o, x: Math.max(0, Math.min(W - 40, o.x + dx)), y: Math.max(0, o.y + dy) };
+      const maxY = setHeight ? Infinity : height() - 40; // a sheet that cannot grow keeps its pictures in reach
+      images[drag.index] = drag.mode === 'resize' ? resizeFrom(o, drag.corner, dx, units)
+        : { ...o, x: Math.max(0, Math.min(units - 40, o.x + dx)), y: Math.max(0, Math.min(maxY, o.y + dy)) };
       return layout();
     }
     if (erasing) return eraseAt(e);
@@ -287,7 +310,7 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
 
   const ro = new ResizeObserver(() => fit(false));
   ro.observe(stage);
-  dark.addEventListener('change', redraw);
+  const offTheme = onTheme(redraw);
 
   S.getDrawing(id).then(d => {
     if (dead || !d) return;
@@ -298,6 +321,7 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
   }).catch(() => {});
 
   const api = {
+    stage,
     undo: () => step(undo, redo),
     redo: () => step(redo, undo),
     fit,
@@ -306,7 +330,8 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
       try {
         const blob = await shrink(file);
         const bmp = await createImageBitmap(blob);
-        const m = { id: S.uid(), blob: await S.saveBlob(blob), ...placeImage(bmp.width, bmp.height, { x: 40 + images.length * 30, y: 40 + images.length * 30 }) };
+        const at = Math.min(40, units * 0.05) + images.length * 30;
+        const m = { id: S.uid(), blob: await S.saveBlob(blob), ...placeImage(bmp.width, bmp.height, { maxW: units * 0.42, x: at, y: at }) };
         bmp.close?.();
         images = [...images, m];
         selected = m.id;
@@ -329,8 +354,9 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
     },
     destroy() {
       dead = true;
+      overlays.delete(layout);
       ro.disconnect();
-      dark.removeEventListener('change', redraw);
+      offTheme();
       if (saveTimer) { clearTimeout(saveTimer); save(); }
     },
   };

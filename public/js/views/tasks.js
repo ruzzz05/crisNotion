@@ -21,7 +21,7 @@ export function tasks(root) {
 
   root.classList.add('db');
   root.append(
-    viewHead('✅', 'Tareas', [h('button', { class: 'btn primary', type: 'button', onclick: () => taskForm() }, icon('plus'), 'Nueva')]),
+    viewHead(null, 'Tareas', [h('button', { class: 'btn primary', type: 'button', onclick: () => taskForm() }, icon('plus'), 'Nueva')]),
     quick,
     pending.length ? h('div', { class: 'rows' }, pending.map(taskRow))
       : empty(all.length ? 'Todo hecho.' : 'Apunta aquí deberes y cosas por hacer. Toca una tarea para ponerle fecha o asignatura.'),

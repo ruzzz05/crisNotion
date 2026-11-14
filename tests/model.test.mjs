@@ -178,3 +178,37 @@ test('belowIndex is the end of the row for a column and the end of the nested ra
 test('migrate changes nothing on current data', () => {
   assert.equal(migrate([{ id: 'p', type: 'page', bookId: 'b', parentId: null }]).length, 0);
 });
+
+test('side notes of a PDF sheet are added, listed and removed per sheet and side', async () => {
+  const { sideList, sideAdd, sideRemove, sidesUsed } = await import('../public/js/model.js');
+  const b = { id: 'p', t: 'pdf' };
+  assert.deepEqual(sideList(b, 1, 'l'), []);
+  assert.deepEqual(sidesUsed(b), { l: false, r: false });
+  sideAdd(b, 2, 'r', { id: 'n1', t: 'text' });
+  sideAdd(b, 2, 'r', { id: 'n2', t: 'image', blob: 'x' });
+  assert.deepEqual(sideList(b, 2, 'r').map(x => x.id), ['n1', 'n2']);
+  assert.deepEqual(sideList(b, 2, 'l'), []);
+  assert.deepEqual(sidesUsed(b), { l: false, r: true });
+  assert.equal(sideRemove(b, 2, 'r', 'n1').id, 'n1');
+  sideRemove(b, 2, 'r', 'n2');
+  assert.equal(b.side, undefined);
+});
+test('pdfAssets lists every file and drawing a PDF block owns', async () => {
+  const { pdfAssets } = await import('../public/js/model.js');
+  const b = { id: 'p', t: 'pdf', blob: 'file', n: 2, side: { 1: { l: [{ id: 'a', t: 'image', blob: 'pic' }, { id: 'b', t: 'draw' }], r: [{ id: 'c', t: 'text' }] } } };
+  assert.deepEqual(pdfAssets(b), { blobs: ['file', 'pic'], drawings: ['p:1', 'p:2', 'b'] });
+});
+test('photoIndex rotates through the photos once per period', async () => {
+  const { photoIndex, nextSwap } = await import('../public/js/model.js');
+  const H = 3600e3;
+  assert.equal(photoIndex(0, 1, 3), 0);
+  assert.equal(photoIndex(H + 5, 1, 3), 1);
+  assert.equal(photoIndex(3 * H, 1, 3), 0);
+  assert.equal(photoIndex(2 * H, 3, 3), 0);
+  assert.equal(photoIndex(3 * H, 3, 3), 1);
+  assert.equal(photoIndex(5, 1, 0), -1);
+  // A daily photo changes at local midnight, not at midnight UTC.
+  assert.equal(photoIndex(23 * H, 24, 5, -120), 1);
+  assert.equal(nextSwap(H + 5, 1), 2 * H);
+  assert.equal(nextSwap(23 * H, 24, -120), 46 * H);
+});

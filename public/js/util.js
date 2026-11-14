@@ -41,3 +41,23 @@ export function plain(html) {
 }
 
 export const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const ALLOWED = new Set(['B', 'I', 'U', 'S', 'STRONG', 'EM', 'BR', 'SPAN', 'MARK', 'STRIKE', 'FONT', 'DIV', 'CODE', 'A']);
+/** Keep only inline formatting; stored HTML may come from an imported backup. */
+export function sanitize(html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  for (const el of [...tpl.content.querySelectorAll('*')]) {
+    if (!ALLOWED.has(el.tagName)) {
+      if (/^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|LINK|META)$/.test(el.tagName)) el.remove();
+      else el.replaceWith(...el.childNodes);
+      continue;
+    }
+    const bg = el.style?.backgroundColor;
+    const href = el.tagName === 'A' ? el.getAttribute('href') : null;
+    for (const a of [...el.attributes]) el.removeAttribute(a.name);
+    if (bg && bg !== 'transparent') el.style.backgroundColor = bg;
+    if (href && /^(https?:|mailto:)/i.test(href)) { el.setAttribute('href', href); el.setAttribute('rel', 'noopener noreferrer'); }
+  }
+  return tpl.innerHTML;
+}

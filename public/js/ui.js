@@ -62,6 +62,7 @@ const PATHS = {
   type: '<path d="M5 6V4.500h14V6M12 4.500v15M9.500 19.500h5"/>',
   tab: '<rect x="3.500" y="5" width="17" height="14" rx="2"/><path d="M3.500 9.500h17"/>',
   width: '<path d="M4 12h16M7 9l-3 3 3 3M17 9l3 3-3 3"/>',
+  cloud: '<path d="M7 18.500a4.500 4.500 0 0 1-.500-8.970A6 6 0 0 1 18 10.500a4 4 0 0 1-.500 8z"/>',
   columns: '<rect x="3.500" y="4.500" width="17" height="15" rx="2"/><path d="M12 4.500v15"/>',
   book: '<path d="M5.500 4h10.500a2.500 2.500 0 0 1 2.500 2.500V20H8a2.500 2.500 0 0 1-2.500-2.500z"/><path d="M5.500 17.500A2.500 2.500 0 0 1 8 15h10.500"/>',
 };
@@ -219,7 +220,7 @@ export const empty = (text, action) => h('div', { class: 'empty' }, h('p', null,
 /** Header shared by the built-in views (Horario, Calendario…): big icon, title, actions on the right. */
 export function viewHead(emoji, title, actions = [], sub) {
   return h('header', { class: 'view-head' },
-    h('div', { class: 'view-emoji', 'aria-hidden': 'true' }, emoji),
+    emoji && h('div', { class: 'view-emoji', 'aria-hidden': 'true' }, emoji),
     h('div', { class: 'view-title-row' }, h('h1', null, title), h('div', { class: 'view-actions' }, actions)),
     sub && h('p', { class: 'muted' }, sub));
 }

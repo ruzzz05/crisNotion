@@ -62,12 +62,14 @@ const caretIn = async t => {
   }, t);
 };
 
+// Cloud sync is off until its own section, which swaps Firebase for a cloud kept in this process.
+await page.evaluateOnNewDocument(() => { window.__cuadernoCloud = { off: true }; });
 await page.goto(URL0, { waitUntil: 'networkidle0' });
 
 await section('shell', async () => {
   check(await visible('.sidebar'), 'sidebar is visible on a tablet');
   const paper = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  check(paper === 'rgb(245, 240, 230)', 'the default background is beige: ' + paper);
+  check(paper === 'rgb(255, 255, 255)', 'the default theme is white: ' + paper);
   check(await count('.tabx') === 1 && (await text('.tabx.on')).includes('Inicio'), 'starts with one tab on Inicio');
   check((await texts('.side-item')).join('|').includes('Horario') && (await texts('.side-item')).join('|').includes('Calendario'), 'sidebar lists Horario and Calendario');
   check(!(await text('.topbar')).includes('null'), 'top bar shows no stray "null" on a built-in view');
@@ -196,6 +198,14 @@ await section('drawing', async () => {
   });
   await sleep(600);
   check((await drawings())[0] === 3 && r.after > r.before, 'pencil draws while a finger scrolls the page: ' + JSON.stringify(r));
+  check(await count('.draw-bar input.stroke-range') === 1 && await count('.draw-bar [aria-label="Trazo fino"]') === 0, 'line thickness is a slider, not three fixed sizes');
+  await page.$eval('.draw-bar input.stroke-range', e => { e.value = '9.5'; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); });
+  await sleep(100);
+  const nb = await (await page.$('.draw-live')).boundingBox();
+  await stroke([[nb.x + 420, nb.y + 100], [nb.x + 470, nb.y + 105], [nb.x + 520, nb.y + 100]]); await sleep(600);
+  const lastSize = await page.evaluate(async () => new Promise(r => { const q = indexedDB.open('cuaderno'); q.onsuccess = () => { const g = q.result.transaction('drawings').objectStore('drawings').getAll(); g.onsuccess = () => r(g.result[0].strokes.at(-1).s); }; }));
+  check(lastSize === 9.5, 'a stroke uses the thickness picked on the slider: ' + lastSize);
+  check(await page.$eval('.draw-bar input.stroke-range', e => e.value === '9.5'), 'the slider keeps its value after the toolbar redraws');
 });
 
 await section('pictures on the drawing sheet', async () => {
@@ -208,14 +218,20 @@ await section('pictures on the drawing sheet', async () => {
   check(await count('.draw-img') === 1 && (await img()).loaded, 'a picture can be inserted into the drawing');
   check(await page.$eval('.draw-bar [aria-label="Mover imágenes"]', e => e.classList.contains('on')), 'inserting a picture switches to the move tool');
   const a = await img();
-  await page.mouse.move(a.x + 10, a.y + 10); await page.mouse.down();
-  await page.mouse.move(a.x + 90, a.y + 50, { steps: 6 }); await page.mouse.up(); await sleep(100);
+  await page.mouse.move(a.x + a.w / 2, a.y + a.h / 2); await page.mouse.down();
+  await page.mouse.move(a.x + a.w / 2 + 80, a.y + a.h / 2 + 40, { steps: 6 }); await page.mouse.up(); await sleep(100);
   const b = await img();
   check(Math.abs(b.x - a.x - 80) < 3 && Math.abs(b.y - a.y - 40) < 3, 'dragging with the move tool moves the picture: ' + JSON.stringify([b.x - a.x, b.y - a.y]));
   await page.mouse.move(b.x + b.w - 4, b.y + b.h - 4); await page.mouse.down();
   await page.mouse.move(b.x + b.w + 56, b.y + b.h + 20, { steps: 6 }); await page.mouse.up(); await sleep(100);
-  const c = await img();
+  let c = await img();
   check(c.w > b.w + 40 && Math.abs(c.w / c.h - b.w / b.h) < 0.05, 'dragging its corner resizes it keeping the proportions: ' + JSON.stringify([b.w, c.w]));
+  check(await visible('.draw-sel') && await count('.draw-sel .draw-grip') === 4, 'the selected picture shows a handle on each corner');
+  await page.mouse.move(c.x + 4, c.y + 4); await page.mouse.down();
+  await page.mouse.move(c.x + 64, c.y + 30, { steps: 6 }); await page.mouse.up(); await sleep(100);
+  const c2 = await img();
+  check(c2.w < c.w - 40 && Math.abs(c2.x + c2.w - c.x - c.w) < 2 && Math.abs(c2.y + c2.h - c.y - c.h) < 2, 'the top-left handle resizes too, keeping the opposite corner in place: ' + JSON.stringify([c.w, c2.w]));
+  c = c2;
   const strokesBefore = (await drawings())[0];
   await page.click('.draw-bar [aria-label="Bolígrafo"]');
   await page.mouse.move(c.x + 5, c.y + 5); await page.mouse.down();
@@ -233,6 +249,13 @@ await section('photo', async () => {
   writeFileSync(`${OUT}/photo.png`, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mNk+M9Qz0AEYBxVSF+FAP5FDvcfRYWgAAAAAElFTkSuQmCC', 'base64'));
   await (await page.$('input.photo-input')).uploadFile(`${OUT}/photo.png`); await sleep(700);
   check(await page.evaluate(() => { const i = document.querySelector('.blk[data-t=image] img'); return !!i && i.src.startsWith('blob:') && i.naturalWidth > 0; }), 'photo block shows the picture');
+  await page.$eval('.blk[data-t=image]', e => e.scrollIntoView({ block: 'center' })); await sleep(200);
+  const pw = () => page.$eval('.blk[data-t=image] img', e => e.getBoundingClientRect().width);
+  const w0 = await pw(), grip = await (await page.$('.blk[data-t=image] .img-grip')).boundingBox();
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2); await page.mouse.down();
+  await page.mouse.move(grip.x + grip.width / 2 - 200, grip.y + grip.height / 2, { steps: 6 }); await page.mouse.up(); await sleep(150);
+  const w1 = await pw();
+  check(Math.abs(w0 - w1 - 200) < 12, 'dragging the handle of a photo sets its size freely: ' + JSON.stringify([w0, w1]));
 });
 
 const pdfInk = () => page.evaluate(async () => new Promise(r => { const q = indexedDB.open('cuaderno'); q.onsuccess = () => { const g = q.result.transaction('drawings').objectStore('drawings').getAll(); g.onsuccess = () => r(g.result.filter(d => /:[0-9]+$/.test(d.id)).map(d => d.id.split(':')[1] + '=' + d.strokes.length)); }; }));
@@ -256,8 +279,56 @@ await section('pdf', async () => {
   await page.mouse.move(box.x + 320, box.y + 264, { steps: 8 }); await page.mouse.up(); await sleep(700);
   check((await pdfInk()).join() === '1=1', 'highlighting on a PDF page is saved for that page: ' + (await pdfInk()).join());
   check(await page.$eval('.blk[data-t=pdf] .draw-bar', e => getComputedStyle(e).position === 'sticky'), 'the PDF tools stay in view while scrolling its pages');
+  await (await page.$('.blk[data-t=pdf] input.draw-file')).uploadFile(`${OUT}/big.png`); await sleep(800);
+  check(await count('.pdf-page .draw-img') === 1 && await page.$eval('.pdf-page .draw-img', e => e.naturalWidth > 0), 'a picture can be placed on a PDF sheet');
+  check(await page.$eval('.pdf-row', r => !!r.querySelector('.pdf-page .draw-img')), 'the picture lands on the sheet being used');
   await page.click('.blk[data-t=pdf] .draw-bar [aria-label="Bolígrafo"]');
   await shot('02c-pdf');
+});
+
+await section('pdf margins', async () => {
+  const rect = sel => page.$eval(sel, e => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom, w: r.width }; });
+  const addTo = async (row, side, what) => {
+    await page.$eval(`.pdf-row:nth-child(${row})`, e => e.scrollIntoView({ block: 'center' })); await sleep(200);
+    await page.click(`.pdf-row:nth-child(${row}) .pdf-side[data-side=${side}] .side-add`); await sleep(150);
+    await clickText('.pop .menu-item', what); await sleep(200);
+  };
+  check(await count('.pdf-row') === 2 && await count('.pdf-side .side-add') === 4, 'every PDF sheet has a margin on each side to add things');
+  const before = await rect('.pdf-row:nth-child(1) .pdf-page');
+  await addTo(1, 'r', 'Texto');
+  check(await page.evaluate(() => document.activeElement?.classList.contains('note-text')), 'adding text to a margin starts writing in it');
+  await type('nota al margen'); await sleep(100);
+  const sheet = await rect('.pdf-row:nth-child(1) .pdf-page'), note = await rect('.side-note[data-t=text]');
+  check(note.l >= sheet.r - 1 && note.t >= sheet.t - 1 && note.t < sheet.b, 'the note sits to the right of its sheet, at its height: ' + JSON.stringify([sheet, note]));
+  check(sheet.w > before.w * 0.55, 'the sheet stays readable next to its notes: ' + JSON.stringify([before.w, sheet.w]));
+  const s2 = await rect('.pdf-row:nth-child(2) .pdf-page');
+  check(Math.abs(s2.w - sheet.w) < 1 && Math.abs(s2.l - sheet.l) < 1, 'all the sheets of the PDF keep the same width and line up');
+  await addTo(2, 'l', 'Imagen');
+  await (await page.$('.blk[data-t=pdf] input.side-file')).uploadFile(`${OUT}/big.png`); await sleep(800);
+  const pic = await rect('.pdf-row:nth-child(2) .side-note[data-t=image] img'), sheet2 = await rect('.pdf-row:nth-child(2) .pdf-page');
+  check(pic.w > 20 && pic.r <= sheet2.l + 1 && await page.$eval('.side-note[data-t=image] img', e => e.naturalWidth > 0), 'a picture can go in the left margin of a sheet');
+  const g = await (await page.$('.side-note[data-t=image] .img-grip')).boundingBox();
+  await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2); await page.mouse.down();
+  await page.mouse.move(g.x + g.width / 2 - 60, g.y + g.height / 2, { steps: 5 }); await page.mouse.up(); await sleep(150);
+  check((await rect('.side-note[data-t=image] img')).w < pic.w - 30, 'a picture in the margin can be resized by hand');
+  await addTo(1, 'r', 'Dibujo');
+  check(await count('.pdf-row:nth-child(1) .side-note[data-t=draw] .draw-live') === 1, 'a drawing can go in a margin');
+  await page.click('.blk[data-t=pdf] .draw-bar [aria-label="Bolígrafo"]');
+  await page.$eval('.side-note[data-t=draw]', e => e.scrollIntoView({ block: 'center' })); await sleep(200);
+  const d = await (await page.$('.side-note[data-t=draw] .draw-live')).boundingBox();
+  await page.mouse.move(d.x + 10, d.y + 20); await page.mouse.down();
+  await page.mouse.move(d.x + d.width - 10, d.y + 40, { steps: 6 }); await page.mouse.up(); await sleep(700);
+  const marginInk = await page.evaluate(async () => {
+    const id = document.querySelector('.side-note[data-t=draw]').dataset.id;
+    return new Promise(r => { const q = indexedDB.open('cuaderno'); q.onsuccess = () => { const g = q.result.transaction('drawings').objectStore('drawings').get(id); g.onsuccess = () => r(g.result?.strokes.length); }; });
+  });
+  check(marginInk === 1 && (await pdfInk()).join() === '1=1', 'the PDF tools draw on the margin drawing, not on the sheet: ' + marginInk);
+  await addTo(2, 'r', 'Texto');
+  await type('sobra'); await sleep(100);
+  check(await count('.side-note') === 4, 'several things can be added around a PDF');
+  await page.evaluate(() => [...document.querySelectorAll('.side-note')].find(e => e.textContent.includes('sobra')).querySelector('.note-del').click()); await sleep(150);
+  check(await count('.side-note') === 3 && !(await text('.blk[data-t=pdf]')).includes('sobra'), 'a margin note can be removed');
+  await shot('02d-pdf-margins');
 });
 
 await section('subpages', async () => {
@@ -392,6 +463,14 @@ await section('page background', async () => {
   check(await visible('.pop .bg-grid'), 'the Fondo button opens the background picker');
   await (await page.$('input.bg-input')).uploadFile(`${OUT}/photo.png`); await sleep(700);
   check((await bg()).i.includes('blob:'), 'a picture can be set as the page background: ' + (await bg()).i.slice(0, 20));
+  const veil = await page.evaluate(() => {
+    const sc = document.querySelector('.scroll'), inner = document.querySelector('.page-inner'), img = getComputedStyle(sc).backgroundImage;
+    const m = /rgba\([^)]*,\s*([\d.]+)\)/.exec(img) || /color\(srgb [\d. ]+\/ ([\d.]+)\)/.exec(img);
+    return { panel: getComputedStyle(inner).backgroundColor, gradient: img.includes('gradient'), alpha: m ? Number(m[1]) : 1, img: img.slice(0, 90) };
+  });
+  check(veil.panel === 'rgba(0, 0, 0, 0)' && veil.gradient, 'the tint over a background picture covers the whole picture, with no misaligned panel: ' + JSON.stringify(veil));
+  check(veil.alpha <= 0.5, 'the tint over a background picture is light: ' + veil.alpha);
+  await shot('04c-background-image');
   await page.hover('.page-head');
   await clickText('.page-ctl button', 'Fondo');
   await page.click('.pop .bg-grid [data-bg="blue"]'); await sleep(150);
@@ -421,8 +500,10 @@ await section('persistence', async () => {
   check(b.length >= 10 && b[0].text === 'Texto normal' && b.some(x => x.t === 'toggle') && b.some(x => x.t === 'code') && b.some(x => x.t === 'page'), 'blocks are still there after a reload: ' + b.map(x => x.t).join(','));
   check(await count('.blk.in-row') === 2, 'columns survive a reload');
   check((await page.$eval('.scroll', e => getComputedStyle(e).backgroundColor)) === 'rgb(231, 243, 248)', 'page background survives a reload');
-  check(await count('.draw-img') === 1, 'pictures in a drawing survive a reload');
+  check(await count('.blk[data-t=draw] .draw-img') === 1, 'pictures in a drawing survive a reload');
   check(await waitFor(async () => await count('.pdf-page') === 2) && (await pdfInk()).join() === '1=1', 'the PDF and its annotations survive a reload');
+  check(await count('.side-note') === 3 && (await text('.side-note[data-t=text]')).includes('nota al margen'), 'PDF margin notes survive a reload');
+  check(await count('.pdf-page .draw-img') === 1, 'the picture on a PDF sheet survives a reload');
   await sleep(500);
   const inked = await page.evaluate(() => { const c = document.querySelector('.draw-base'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
   check(inked > 1500, 'drawing is repainted after a reload: ' + inked);
@@ -490,6 +571,30 @@ await section('calendar and tasks', async () => {
   await shot('09-home');
 });
 
+await section('photo widget', async () => {
+  check(await count('.photo-widget') === 1 && await visible('.photo-empty'), 'home has a photo widget that starts empty');
+  await (await page.$('input.photo-widget-input')).uploadFile(`${OUT}/big.png`, `${OUT}/photo.png`); await sleep(900);
+  check(await page.evaluate(() => { const i = document.querySelector('.photo-widget img.photo-now'); return !!i && i.naturalWidth > 0; }), 'uploaded photos are shown in the widget');
+  check((await text('.photo-count')).includes('2'), 'the widget says how many photos it holds: ' + await text('.photo-count'));
+  check((await page.$$eval('.photo-every option', o => o.map(x => x.value))).join() === '1,3,24', 'the photo changes every hour, every 3 hours or once a day');
+  await page.select('.photo-every', '24'); await sleep(150);
+  const which = await page.evaluate(async () => {
+    const M = await import('./js/model.js'), S = await import('./js/store.js'), d = S.get('photos'), tz = new Date().getTimezoneOffset();
+    const shown = document.querySelector('.photo-widget img.photo-now').dataset.blob;
+    return { every: d.every, ok: d.items[M.photoIndex(Date.now(), d.every, d.items.length, tz)] === shown };
+  });
+  check(which.every === 24 && which.ok, 'the photo shown is the one due for the chosen interval: ' + JSON.stringify(which));
+  await clickText('.side-item', 'Tareas'); await sleep(150); await clickText('.side-item', 'Inicio'); await sleep(300);
+  check(await page.$eval('.photo-every', e => e.value === '24') && await count('.photo-widget img.photo-now') === 1, 'the widget remembers its photos and interval');
+  await clickText('.photo-widget button', 'Gestionar'); await sleep(200);
+  check(await count('.modal .photo-thumb') === 2, 'the photos can be reviewed');
+  await page.click('.modal .photo-thumb .photo-del'); await sleep(200);
+  check(await count('.modal .photo-thumb') === 1, 'a photo can be removed from the widget');
+  await page.click('.modal-close'); await sleep(200);
+  check((await text('.photo-count')).includes('1'), 'the widget updates after removing a photo');
+  await shot('09b-photo-widget');
+});
+
 await section('trash', async () => {
   await clickText('.tree-row .tree-title', 'Física'); await sleep(250);
   await page.click('.top-more'); await sleep(150);
@@ -509,16 +614,167 @@ await section('backup', async () => {
     await S.importAll(JSON.parse(json));
     return { docs: data.docs.length, drawings: data.drawings.length, blobs: data.blobs.length };
   });
-  check(rt.docs >= 10 && rt.drawings === 2 && rt.blobs === 3, 'backup exports and re-imports everything: ' + JSON.stringify(rt));
+  check(rt.docs >= 10 && rt.drawings === 3 && rt.blobs === 6, 'backup exports and re-imports everything: ' + JSON.stringify(rt));
 });
 
-await section('dark mode', async () => {
-  await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
+await section('export and import', async () => {
+  const names = () => texts('.book-name');
+  await page.click('.book-more'); await sleep(150);
+  const bookItems = (await texts('.pop .menu-item')).join('|');
+  check(bookItems.includes('Exportar libro') && bookItems.includes('Importar página aquí'), 'the book menu exports the book and imports pages: ' + bookItems);
+  await press('Escape');
+  await clickText('.tree-row .tree-title', 'Matemáticas II'); await sleep(300);
+  await page.click('.top-more'); await sleep(150);
+  check((await texts('.pop .menu-item')).join('|').includes('Exportar página'), 'the page menu exports the page');
+  await press('Escape');
+  const files = await page.evaluate(async () => {
+    const S = await import('./js/store.js');
+    const book = S.all('book')[0], sub = S.pages().find(p => p.title === 'Tema 1: Límites');
+    const b = await S.exportBundle(book.id), p = await S.exportBundle(sub.id);
+    return { book: JSON.stringify(b), page: JSON.stringify(p), kinds: [b.kind, p.kind], pages: b.docs.filter(d => d.type === 'page').length, blobs: b.blobs.length, drawings: b.drawings.length, pageDocs: p.docs.length };
+  });
+  check(files.kinds.join() === 'book,page' && files.pages === 3 && files.pageDocs === 1, 'a book exports with all its pages and a page on its own: ' + JSON.stringify([files.kinds, files.pages, files.pageDocs]));
+  check(files.blobs === 5 && files.drawings === 3, 'an export carries the photos, PDFs and drawings of its pages: ' + JSON.stringify([files.blobs, files.drawings]));
+  writeFileSync(`${OUT}/libro.cuaderno.json`, files.book);
+  writeFileSync(`${OUT}/pagina.cuaderno.json`, files.page);
+  await clickText('.side-item', 'Ajustes'); await sleep(200);
+  await (await page.$('input.import-input')).uploadFile(`${OUT}/libro.cuaderno.json`); await sleep(1200);
+  check((await names()).join('|') === '2.º de Bachillerato|2.º de Bachillerato', 'importing a book adds it as a new book, without touching the one already there: ' + (await names()).join('|'));
+  const copy = await page.evaluate(async () => {
+    const S = await import('./js/store.js'), { db } = await import('./js/db.js');
+    const [a, b] = S.all('book'), mine = S.pages().filter(p => p.bookId === b.id), top = mine.find(p => p.title === 'Matemáticas II'), sub = mine.find(p => p.title === 'Tema 1: Límites');
+    const draw = top.blocks.find(x => x.t === 'draw'), d = await db.get('drawings', draw.id), img = top.blocks.find(x => x.t === 'image');
+    const orig = S.pages().find(p => p.bookId === a.id && p.title === 'Matemáticas II');
+    return { pages: mine.length, nested: sub?.parentId === top.id, link: top.blocks.find(x => x.t === 'page').pageId === sub?.id, strokes: d?.strokes.length, pic: !!(await S.getBlob(d.images[0].blob)), photo: !!(await S.getBlob(img.blob)),
+      fresh: draw.id !== orig.blocks.find(x => x.t === 'draw').id && img.blob !== orig.blocks.find(x => x.t === 'image').blob, id: top.id };
+  });
+  check(copy.pages === 3 && copy.nested && copy.link, 'the imported book keeps its pages nested and its subpage links: ' + JSON.stringify(copy));
+  check(copy.strokes >= 4 && copy.pic && copy.photo && copy.fresh, 'the imported pages bring their own copies of drawings and photos');
+  await page.evaluate(id => { location.hash = '#/page/' + id; }, copy.id); await sleep(900);
+  check(await count('.blk[data-t=draw] .draw-img') === 1 && await page.evaluate(() => { const i = document.querySelector('.blk[data-t=image] img'); return !!i && i.naturalWidth > 0; }), 'an imported page opens with its pictures');
+  await page.evaluate(() => document.querySelectorAll('.book-more')[1].click()); await sleep(150);
+  await clickText('.pop .menu-item', 'Importar página aquí');
+  await (await page.$('input.import-here-input')).uploadFile(`${OUT}/pagina.cuaderno.json`); await sleep(900);
+  const into = await page.evaluate(async () => { const S = await import('./js/store.js'); const b = S.all('book')[1]; return S.children({ bookId: b.id }).map(p => p.title).sort().join('|'); });
+  check(into === 'Física|Matemáticas II|Tema 1: Límites', 'a single page is imported into the chosen book as a top-level page: ' + into);
+  await clickText('.side-item', 'Ajustes'); await sleep(200);
+  writeFileSync(`${OUT}/malo.json`, '{"hola":1}');
+  await (await page.$('input.import-input')).uploadFile(`${OUT}/malo.json`); await sleep(400);
+  check(await visible('.toast') && (await names()).length === 2, 'a file that is not from Cuaderno is rejected with a message');
+  await sleep(3200);
+  await page.evaluate(() => document.querySelectorAll('.book-more')[1].click()); await sleep(150);
+  await clickText('.pop .menu-item', 'Eliminar libro'); await clickText('.modal button', 'Eliminar'); await sleep(300);
+  check((await names()).length === 1, 'the imported book can be deleted again');
+});
+
+await section('themes', async () => {
+  const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  await clickText('.side-item', 'Ajustes'); await sleep(200);
+  check((await page.$$eval('.theme-pick option', o => o.map(x => x.value))).join() === 'white,beige,dark,system' && await page.$eval('.theme-pick', e => e.value === 'white'), 'Ajustes offers the themes, with white selected at first');
+  await page.select('.theme-pick', 'beige'); await sleep(150);
+  check(await bg() === 'rgb(245, 240, 230)', 'the beige theme can be chosen: ' + await bg());
+  await page.select('.theme-pick', 'dark'); await sleep(150);
+  check(await bg() === 'rgb(25, 25, 25)', 'the dark theme can be chosen whatever the device says: ' + await bg());
   await clickText('.tree-row .tree-title', 'Matemáticas II'); await sleep(500);
-  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  check(bg === 'rgb(25, 25, 25)', 'dark mode uses the dark background: ' + bg);
   await shot('10-dark');
+  await page.reload({ waitUntil: 'networkidle0' });
+  check(await bg() === 'rgb(25, 25, 25)', 'the chosen theme survives a reload');
+  await clickText('.side-item', 'Ajustes'); await sleep(200);
+  await page.select('.theme-pick', 'system'); await sleep(150);
+  check(await bg() === 'rgb(255, 255, 255)', 'following the system gives white on a light device');
+  await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]); await sleep(200);
+  check(await bg() === 'rgb(25, 25, 25)', 'and switches to dark as soon as the device does');
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
+  await page.select('.theme-pick', 'white'); await sleep(150);
+  check(await bg() === 'rgb(255, 255, 255)', 'back to white: ' + await bg());
+  const face = sel => page.$eval(sel, e => getComputedStyle(e).fontFamily.split(',')[0].replaceAll('"', '').trim());
+  check(await face('body') === 'Times New Roman' && await face('.side-item') === 'Times New Roman', 'menus and everything else use Times New Roman unless another font is chosen: ' + await face('body'));
+  check((await page.$$eval('.font-pick option', o => o.map(x => x.value))).join() === 'times,sans,georgia,palatino,verdana,rounded,hand,mono' && await page.$eval('.font-pick', e => e.value === 'times'), 'Ajustes offers several fonts for the app');
+  await page.select('.font-pick', 'verdana'); await sleep(150);
+  check(await face('body') === 'Verdana', 'the font of the app can be changed: ' + await face('body'));
+  await page.reload({ waitUntil: 'networkidle0' });
+  check(await face('body') === 'Verdana', 'the chosen font survives a reload');
+  await clickText('.tree-row .tree-title', 'Matemáticas II'); await sleep(400);
+  await page.click('.top-more'); await sleep(150);
+  await clickText('.pop .menu-item', 'Fuente');
+  const faces = (await texts('.pop .menu-label')).join('|');
+  check(faces.includes('Georgia') && faces.includes('Manuscrita') && faces.includes('Times New Roman'), 'each page can have its own writing font: ' + faces);
+  await clickText('.pop .menu-item', 'Georgia'); await sleep(300);
+  check(await face('.page .blk .content') === 'Georgia' && await face('.side-item') === 'Verdana', 'the font of a page changes its text and nothing else');
+  await page.click('.top-more'); await sleep(150);
+  await clickText('.pop .menu-item', 'Fuente'); await clickText('.pop .menu-item', 'La de la aplicación'); await sleep(300);
+  check(await face('.page .blk .content') === 'Verdana', 'a page can go back to the font of the app');
+  await clickText('.side-item', 'Ajustes'); await sleep(200);
+  await page.select('.font-pick', 'times'); await sleep(150);
+  check(await face('body') === 'Times New Roman', 'back to Times New Roman');
+  await clickText('.tree-row .tree-title', 'Matemáticas II'); await sleep(400);
+});
+
+await section('cloud sync between two devices', async () => {
+  const cloudDocs = new Map();
+  let clock = 0;
+  const cloudCall = async (method, arg) => {
+    if (method === 'changes') return { items: [...cloudDocs].filter(([, d]) => d.at > (arg || 0)).sort((a, b) => a[1].at - b[1].at).map(([key, d]) => ({ key, u: d.u, gone: d.gone, x: 0 })), cursor: clock };
+    if (method === 'fetch') { const d = cloudDocs.get(arg); return d ? { u: d.u, gone: d.gone, payload: d.payload } : null; }
+    return arg.map(it => { cloudDocs.set(it.key, { u: it.u, gone: it.payload == null, payload: it.payload, at: ++clock }); return 0; });
+  };
+  const wire = async pg => {
+    await pg.exposeFunction('__cloud', cloudCall);
+    await pg.evaluateOnNewDocument(() => { window.__cuadernoCloud = { uid: 'u1', username: 'cris', remote: { changes: c => window.__cloud('changes', c), fetch: k => window.__cloud('fetch', k), write: i => window.__cloud('write', i) } }; });
+  };
+  const label = pg => pg.evaluate(() => document.querySelector('.side-sync')?.textContent || '');
+  const live = prefix => [...cloudDocs].filter(([k, d]) => k.startsWith(prefix) && !d.gone).length;
+  const inCloud = t => [...cloudDocs.values()].some(d => !d.gone && d.payload.includes(t));
+
+  check(await label(page) === '', 'without an account nothing about the cloud gets in the way');
+  await wire(page);
+  await page.reload({ waitUntil: 'networkidle0' });
+  check(await waitFor(async () => await label(page) === 'Sincronizado', 20000), 'signing in uploads what the device already had: ' + await label(page));
+  check(live('d_') >= 10 && live('i_') >= 3 && live('f_') >= 6, 'pages, drawings, photos and PDFs all go up: ' + JSON.stringify([live('d_'), live('i_'), live('f_')]));
+
+  const ctx2 = await browser.createBrowserContext(), p2 = await ctx2.newPage();
+  await p2.setViewport({ width: 1180, height: 820, deviceScaleFactor: 1 });
+  p2.on('pageerror', e => errors.push('pageerror (2): ' + e.message));
+  p2.on('console', m => { if (m.type() === 'error') errors.push('console (2): ' + m.text()); });
+  await wire(p2);
+  await p2.goto(URL0, { waitUntil: 'networkidle0' });
+  check(await waitFor(async () => (await p2.$$eval('.book-name', e => e.map(x => x.textContent))).join() === '2.º de Bachillerato', 20000), 'a second device with the same account gets the books');
+  await p2.evaluate(() => [...document.querySelectorAll('.tree-row .tree-title')].find(e => e.textContent === 'Matemáticas II').click());
+  check(await waitFor(async () => await p2.$$eval('.pdf-page', e => e.length) === 2, 15000), 'the PDF arrives on the second device');
+  const there = await p2.evaluate(() => ({
+    blocks: document.querySelectorAll('.blk').length,
+    photo: document.querySelector('.blk[data-t=image] img')?.naturalWidth > 0,
+    drawPic: document.querySelectorAll('.blk[data-t=draw] .draw-img').length,
+    note: document.querySelector('.side-note[data-t=text]')?.textContent || '',
+    bg: getComputedStyle(document.querySelector('.scroll')).backgroundColor,
+  }));
+  check(there.blocks >= 10 && there.photo && there.drawPic === 1 && there.note.includes('nota al margen') && there.bg === 'rgb(231, 243, 248)', 'the page looks the same there: blocks, photo, drawing, margin notes and background: ' + JSON.stringify(there));
+  const ink = await p2.evaluate(async () => new Promise(r => { const q = indexedDB.open('cuaderno'); q.onsuccess = () => { const g = q.result.transaction('drawings').objectStore('drawings').getAll(); g.onsuccess = () => r(g.result.map(d => d.strokes.length).sort().join()); }; }));
+  check(ink.split(',').includes('5'), 'the handwriting arrives too: ' + ink);
+
+  await p2.evaluate(() => [...document.querySelectorAll('.side-item')].find(e => e.textContent.includes('Tareas')).click()); await sleep(200);
+  await p2.click('.quick input'); await p2.keyboard.type('Tarea desde el otro dispositivo'); await p2.keyboard.press('Enter');
+  check(await waitFor(async () => inCloud('Tarea desde el otro dispositivo'), 15000), 'what is done on the second device goes up by itself');
+  await clickText('.side-item', 'Ajustes'); await sleep(200);
+  check((await text('.cloud-box')).includes('Sesión de cris'), 'Ajustes shows the account in use: ' + (await text('.cloud-box')).slice(0, 40));
+  await page.click('.cloud-now');
+  await clickText('.side-item', 'Tareas');
+  check(await waitFor(async () => (await text('.view')).includes('Tarea desde el otro dispositivo'), 10000), 'and shows up on the first device');
+  await page.evaluate(async () => { const S = await import('./js/store.js'); S.remove(S.all('task').find(t => t.title === 'Tarea desde el otro dispositivo').id); });
+  check(await waitFor(async () => !inCloud('Tarea desde el otro dispositivo'), 15000), 'deleting something is sent to the cloud as well');
+  await p2.evaluate(() => [...document.querySelectorAll('.side-item')].find(e => e.textContent.includes('Ajustes')).click()); await sleep(200);
+  await p2.click('.cloud-now');
+  await p2.evaluate(() => [...document.querySelectorAll('.side-item')].find(e => e.textContent.includes('Tareas')).click());
+  check(await waitFor(async () => !(await p2.$eval('.view', e => e.textContent)).includes('Tarea desde el otro dispositivo'), 10000), 'and disappears from the other device');
+
+  // Typing on one device while the other changes the same page: the cursor is left alone.
+  await p2.evaluate(async () => { const S = await import('./js/store.js'); location.hash = '#/page/' + S.pages().find(p => p.title === 'Tema 1: Límites').id; }); await sleep(500);
+  await p2.evaluate(() => { const c = [...document.querySelectorAll('.blk .content')].find(e => e.textContent === 'Contenido del tema'); c.focus(); const r = document.createRange(); r.selectNodeContents(c); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); });
+  await p2.keyboard.type(' ampliado');
+  check(await waitFor(async () => inCloud('Contenido del tema ampliado'), 15000), 'typing is saved to the cloud a few seconds later');
+  check(await p2.evaluate(() => document.activeElement?.classList.contains('content')), 'syncing does not take the cursor away while writing');
+  await ctx2.close();
+  await clickText('.tree-row .tree-title', 'Matemáticas II'); await sleep(400);
 });
 
 await section('phone', async () => {

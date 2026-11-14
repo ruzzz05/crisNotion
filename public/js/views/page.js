@@ -20,17 +20,20 @@ export function pageView(root, id, { focusTitle = false } = {}) {
   const scroller = root.closest('.scroll');
   let alive = true;
 
-  // Page background: unset = the default beige, 'white', a colour key, or 'img:<blob id>'.
-  function paint() {
+  // Page background: unset = the colour of the theme, 'white', 'beige', a colour key, or 'img:<blob id>'.
+  const unpaint = () => {
     scroller.style.backgroundColor = '';
-    scroller.style.backgroundImage = '';
+    scroller.style.removeProperty('--bgimg');
     scroller.classList.remove('has-bgimg');
+  };
+  function paint() {
+    unpaint();
     const bg = page.bg;
     if (!bg) return;
     if (bg.startsWith('img:')) {
       S.blobURL(bg.slice(4)).then(u => {
         if (!alive || page.bg !== bg || !u) return;
-        scroller.style.backgroundImage = `url("${u}")`;
+        scroller.style.setProperty('--bgimg', `url("${u}")`);
         scroller.classList.add('has-bgimg');
       });
     } else scroller.style.backgroundColor = bg === 'white' ? 'var(--white)' : `var(--b-${bg})`;
@@ -57,7 +60,7 @@ export function pageView(root, id, { focusTitle = false } = {}) {
     box.append(
       h('div', { class: 'pop-head' }, h('span', null, 'Fondo de la página')),
       h('div', { class: 'bg-grid' },
-        sw('', 'beige (predeterminado)', 'background:var(--bg)'), sw('white', 'blanco', 'background:var(--white)'),
+        sw('', 'el del tema (predeterminado)', 'background:var(--bg)'), sw('white', 'blanco', 'background:var(--white)'), sw('beige', 'beige', 'background:var(--b-beige)'),
         COLORS.map(c => sw(c, COLOR_NAMES[c], `background:var(--b-${c})`))),
       h('button', { class: 'menu-item', type: 'button', onclick: () => { close(); bgFile.click(); } }, icon('image'), 'Usar una imagen'));
   }, 'cover-pop');
@@ -112,8 +115,6 @@ export function pageView(root, id, { focusTitle = false } = {}) {
   return () => {
     alive = false;
     editor.destroy();
-    scroller.style.backgroundColor = '';
-    scroller.style.backgroundImage = '';
-    scroller.classList.remove('has-bgimg');
+    unpaint();
   };
 }

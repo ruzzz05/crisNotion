@@ -38,7 +38,7 @@ export function calendar(root) {
 
   root.classList.add('db');
   root.append(
-    viewHead('📅', 'Calendario', [h('button', { class: 'btn primary', type: 'button', onclick: () => eventForm() }, icon('plus'), 'Nuevo')]),
+    viewHead(null, 'Calendario', [h('button', { class: 'btn primary', type: 'button', onclick: () => eventForm() }, icon('plus'), 'Nuevo')]),
     h('div', { class: 'cal-bar' },
       h('h2', null, cap(month.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }))),
       h('div', { class: 'cal-nav' },
