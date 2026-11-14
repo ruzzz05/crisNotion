@@ -280,6 +280,22 @@ function finder() {
   }, 'finder');
 }
 
+// ---------- No zoom on double tap ----------
+// CSS (touch-action) already asks for this, but iOS does not always honour it, above all in the installed app.
+// So the second of two quick taps on the same spot is cancelled before the browser can zoom. Writing areas
+// are left alone (there a double tap selects a word), and a control still receives its second press.
+let lastTap = { t: 0, x: 0, y: 0 };
+document.addEventListener('touchend', e => {
+  const p = e.changedTouches?.[0];
+  if (!p || e.touches.length) return;
+  const now = Date.now(), double = now - lastTap.t < 350 && Math.hypot(p.clientX - lastTap.x, p.clientY - lastTap.y) < 40;
+  lastTap = { t: double ? 0 : now, x: p.clientX, y: p.clientY };
+  const el = e.target instanceof Element ? e.target : null;
+  if (!double || !el || el.closest('[contenteditable], input, textarea, select')) return;
+  e.preventDefault();
+  el.closest('button, a, label, [role="button"], [role="tab"], [role="option"]')?.click();
+}, { passive: false });
+
 // ---------- Boot ----------
 
 async function boot() {

@@ -7,15 +7,16 @@
 //   mountToolbar(bar, opts)  – tool and colour buttons and the thickness slider; the choice is shared by every sheet
 //   mountSheet(stage, opts)  – one inkable surface, optionally with movable pictures under the ink
 import * as S from './store.js';
-import { h, icon, toast } from './ui.js';
-import { STROKE, bottomOf, hitImage, placeImage, resizeFrom, strokeSize } from './sheet.js';
+import { h, icon, menu, pop, toast } from './ui.js';
+import { STROKE, bottomOf, cleanHex, hexToHsl, hitImage, hslToHex, placeImage, resizeFrom, strokePath, strokeSize } from './sheet.js';
 import { shrink } from './image.js';
 import { isDark, onTheme } from './theme.js';
 
 export const W = 1000;
 const INK = ['ink', 'blue', 'red', 'green', 'orange', 'purple', 'yellow'];
-const BGS = ['grid', 'lines', 'plain'];
-const BG_LABEL = { grid: 'Cuadrícula', lines: 'Rayas', plain: 'Liso' };
+const BG_LABEL = { grid: 'Cuadrícula', lines: 'Rayas', dots: 'Puntos', tian: 'Tian zi ge (田字格)', plain: 'Liso' };
+const INK_NAMES = { ink: 'Tinta', blue: 'Azul', red: 'Rojo', green: 'Verde', orange: 'Naranja', purple: 'Morado', yellow: 'Amarillo' };
+const MAX_CANVAS = 14e6; // pixels per canvas; iOS refuses larger ones
 
 /** `light` forces the light-theme inks, for surfaces that are always white such as PDF pages. */
 const palette = (light = false) => {
@@ -42,40 +43,64 @@ function setPrefs(patch) {
 }
 const refreshBars = () => { for (const draw of bars) draw(); };
 
+/** The colour of a stroke: one of the named inks (which follow the theme) or any '#rrggbb'. */
+const inkOf = (c, colors) => colors[c] || cleanHex(c) || colors.ink;
+
 function paint(ctx, s, colors) {
   const p = s.p;
   ctx.lineCap = ctx.lineJoin = 'round';
-  ctx.strokeStyle = ctx.fillStyle = colors[s.c] || colors.ink;
+  ctx.strokeStyle = ctx.fillStyle = inkOf(s.c, colors);
   if (s.t === 'hl') {
-    // One continuous path, so the translucent ink does not darken where segments overlap.
+    // One continuous path, so the translucent ink does not darken where it overlaps itself.
+    // It curves through the midpoints between samples instead of joining them with straight segments.
     ctx.globalAlpha = 0.35;
     ctx.lineWidth = s.s * 5;
     ctx.beginPath();
     ctx.moveTo(p[0], p[1]);
-    for (let i = 3; i < p.length; i += 3) ctx.lineTo(p[i], p[i + 1]);
-    if (p.length === 3) ctx.lineTo(p[0] + 0.1, p[1]);
+    for (let i = 3; i < p.length - 3; i += 3) ctx.quadraticCurveTo(p[i], p[i + 1], (p[i] + p[i + 3]) / 2, (p[i + 1] + p[i + 4]) / 2);
+    ctx.lineTo(p.at(-3) + (p.length === 3 ? 0.1 : 0), p.at(-2));
     ctx.stroke();
     ctx.globalAlpha = 1;
     return;
   }
-  const width = pr => s.s * (0.35 + pr * 1.3);
-  if (p.length === 3) {
-    ctx.beginPath();
-    ctx.arc(p[0], p[1], width(p[2]) / 2, 0, Math.PI * 2);
-    ctx.fill();
-    return;
-  }
-  for (let i = 3; i < p.length; i += 3) {
-    ctx.lineWidth = width((p[i - 1] + p[i + 2]) / 2);
-    ctx.beginPath();
-    ctx.moveTo(p[i - 3], p[i - 2]);
-    ctx.lineTo(p[i], p[i + 1]);
-    ctx.stroke();
-  }
+  // Pen: the stroke is a filled outline (see strokePath), smooth at its edges and as wide as the pressure.
+  ctx.fill(new Path2D(strokePath(p, s.s)));
 }
 
 const btn = (label, content, fn, on = false, cls = '') =>
   h('button', { class: `tb ${cls}${on ? ' on' : ''}`, type: 'button', 'aria-label': label, title: label, 'aria-pressed': String(on), onclick: fn }, content);
+
+/** Any colour for the pen: the usual inks, or one made with the sliders or typed as #rrggbb. */
+function colorPicker(anchor) {
+  pop(anchor, box => {
+    const colors = palette();
+    const use = color => setPrefs({ color, tool: prefs.tool === 'eraser' || prefs.tool === 'move' ? 'pen' : prefs.tool });
+    let [hue, sat, lum] = hexToHsl(inkOf(prefs.color, colors));
+    const preview = h('span', { class: 'dot color-preview' });
+    const hex = h('input', { class: 'color-hex', type: 'text', maxlength: 7, spellcheck: 'false', autocapitalize: 'none', 'aria-label': 'Color en hexadecimal', onchange: () => { const c = cleanHex(hex.value); if (c) { [hue, sat, lum] = hexToHsl(c); use(c); } show(); } });
+    const slider = (cls, label, max, get, set) => {
+      const r = h('input', { class: 'color-range ' + cls, type: 'range', min: 0, max, step: 1, 'aria-label': label, title: label, oninput: () => { set(Number(r.value)); use(hslToHex(hue, sat, lum)); show(); } });
+      r.sync = () => { r.value = get(); };
+      return r;
+    };
+    const sliders = [slider('hue', 'Tono', 360, () => hue, v => { hue = v; }), slider('sat', 'Intensidad', 100, () => sat, v => { sat = v; }), slider('lum', 'Claridad', 100, () => lum, v => { lum = v; })];
+    const inks = h('div', { class: 'color-inks' }, INK.map(c => h('button', {
+      class: 'tb color', type: 'button', 'data-ink': c, 'aria-label': INK_NAMES[c], title: INK_NAMES[c],
+      onclick: () => { [hue, sat, lum] = hexToHsl(colors[c]); use(c); show(); },
+    }, h('span', { class: 'dot', style: `background:${colors[c]}` }))));
+    function show() {
+      const now = inkOf(prefs.color, colors);
+      preview.style.background = now;
+      if (document.activeElement !== hex) hex.value = now;
+      for (const r of sliders) r.sync();
+      box.style.setProperty('--hue', hue);
+      box.style.setProperty('--sat', sat + '%');
+      for (const b of inks.children) b.classList.toggle('on', b.dataset.ink === prefs.color);
+    }
+    box.append(inks, h('div', { class: 'color-custom' }, ...sliders, h('div', { class: 'color-row' }, preview, hex)));
+    show();
+  }, 'color-pop');
+}
 
 /**
  * opts.sheet()  – the sheet that undo/redo and picture actions apply to (may return null)
@@ -110,8 +135,7 @@ export function mountToolbar(bar, { sheet = () => null, images = false, extra = 
       tool('pen', 'pen', 'Bolígrafo'), tool('hl', 'marker', 'Subrayador'), tool('eraser', 'eraser', 'Goma'),
       images && tool('move', 'hand', 'Mover imágenes'),
       h('span', { class: 'tb-sep' }),
-      ...INK.map(c => btn('Color ' + c, h('span', { class: 'dot', style: `background:${colors[c]}` }), () => setPrefs({ color: c, tool: prefs.tool === 'eraser' || prefs.tool === 'move' ? 'pen' : prefs.tool }), prefs.color === c, 'color')),
-      h('span', { class: 'tb-sep' }),
+      btn('Color del trazo', h('span', { class: 'dot', style: `background:${inkOf(prefs.color, colors)}` }), e => colorPicker(e.currentTarget), false, 'color-now'),
       stroke,
       h('span', { class: 'tb-sep' }),
       btn('Deshacer', icon('undo'), () => sheet()?.undo()),
@@ -138,7 +162,7 @@ export function mountToolbar(bar, { sheet = () => null, images = false, extra = 
 export function mountSheet(stage, { id, height, setHeight = null, images: allowImages = false, light = false, units = W, onActive = () => {} }) {
   let strokes = [], undo = [], redo = [], images = [], selected = null;
   let cur = null, pid = null, pan = null, erasing = false, erased = false, drag = null, rect = null;
-  let scale = 1, width = 0, saveTimer = 0, dead = false;
+  let scale = 1, width = 0, dpr = 2, saveTimer = 0, dead = false, zoomTimer = 0;
 
   const layer = h('div', { class: 'draw-imgs' });
   const base = h('canvas', { class: 'draw-base' });
@@ -146,7 +170,8 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
   stage.classList.add('draw-stage');
   // Frame with a handle on each corner around the selected picture.
   const frame = h('div', { class: 'draw-sel', hidden: true }, ['nw', 'ne', 'sw', 'se'].map(c => h('span', { class: 'draw-grip ' + c })));
-  stage.append(layer, base, live, frame);
+  const del = h('button', { class: 'draw-del', type: 'button', hidden: true, 'aria-label': 'Eliminar esta imagen', title: 'Eliminar esta imagen', onclick: () => api.removeSelected() }, icon('trash'));
+  stage.append(layer, base, live, frame, del);
   const bctx = base.getContext('2d'), lctx = live.getContext('2d');
   const imgEls = new Map();
 
@@ -154,7 +179,7 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
     const colors = palette(light);
     bctx.setTransform(1, 0, 0, 1, 0, 0);
     bctx.clearRect(0, 0, base.width, base.height);
-    const k = scale * (devicePixelRatio || 1);
+    const k = scale * dpr;
     bctx.setTransform(k, 0, 0, k, 0, 0);
     for (const s of strokes) paint(bctx, s, colors);
   }
@@ -163,7 +188,7 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
     lctx.setTransform(1, 0, 0, 1, 0, 0);
     lctx.clearRect(0, 0, live.width, live.height);
     if (!cur) return;
-    const k = scale * (devicePixelRatio || 1);
+    const k = scale * dpr;
     lctx.setTransform(k, 0, 0, k, 0, 0);
     paint(lctx, cur, palette(light));
   }
@@ -183,8 +208,12 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
     }
     for (const [mid, el] of imgEls) if (!images.some(m => m.id === mid)) { el.remove(); imgEls.delete(mid); }
     const m = prefs.tool === 'move' && images.find(x => x.id === selected);
-    frame.hidden = !m;
-    if (m) frame.style.cssText = `left:${m.x * scale}px;top:${m.y * scale}px;width:${m.w * scale}px;height:${m.h * scale}px`;
+    frame.hidden = del.hidden = !m;
+    if (m) {
+      frame.style.cssText = `left:${m.x * scale}px;top:${m.y * scale}px;width:${m.w * scale}px;height:${m.h * scale}px`;
+      // Above the picture's top-right corner, or inside it when the picture touches the top of the sheet.
+      del.style.cssText = `left:${Math.max(4, Math.min(width - 40, (m.x + m.w) * scale - 18))}px;top:${m.y * scale > 44 ? m.y * scale - 42 : m.y * scale + 8}px`;
+    }
   }
   overlays.add(layout);
 
@@ -193,7 +222,9 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
     if (!w || (w === width && !force)) return;
     width = w;
     scale = w / units;
-    const hpx = Math.round(height() * scale), dpr = devicePixelRatio || 1;
+    const hpx = Math.round(height() * scale);
+    // At least 2 device pixels per CSS pixel, more while the page is zoomed in, within what a canvas can hold.
+    dpr = Math.min(Math.max(2, devicePixelRatio || 1) * Math.min(3, visualViewport?.scale || 1), Math.sqrt(MAX_CANVAS / (w * hpx)));
     stage.style.height = hpx + 'px';
     for (const cv of [base, live]) { cv.width = Math.round(w * dpr); cv.height = Math.round(hpx * dpr); }
     stage.style.setProperty('--u', scale + 'px');
@@ -293,7 +324,7 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
     redo = [];
     strokes = [...strokes, s];
     drawLive();
-    const k = scale * (devicePixelRatio || 1);
+    const k = scale * dpr;
     bctx.setTransform(k, 0, 0, k, 0, 0);
     paint(bctx, s, palette(light));
     persist();
@@ -310,6 +341,9 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
 
   const ro = new ResizeObserver(() => fit(false));
   ro.observe(stage);
+  // Pinching to zoom would otherwise stretch the same pixels: redraw sharper once the zoom settles.
+  const onZoom = () => { clearTimeout(zoomTimer); zoomTimer = setTimeout(() => { if (!dead && !cur) fit(true); }, 250); };
+  visualViewport?.addEventListener('resize', onZoom);
   const offTheme = onTheme(redraw);
 
   S.getDrawing(id).then(d => {
@@ -356,6 +390,8 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
       dead = true;
       overlays.delete(layout);
       ro.disconnect();
+      clearTimeout(zoomTimer);
+      visualViewport?.removeEventListener('resize', onZoom);
       offTheme();
       if (saveTimer) { clearTimeout(saveTimer); save(); }
     },
@@ -375,12 +411,14 @@ export function mountDrawing(host, block, changed) {
     sheet: () => sheet, images: true,
     extra: () => [
       h('span', { class: 'tb-sep' }),
-      btn('Fondo: ' + BG_LABEL[block.bg], icon('grid'), () => {
-        stage.classList.remove('bg-' + block.bg);
-        block.bg = BGS[(BGS.indexOf(block.bg) + 1) % BGS.length];
-        stage.classList.add('bg-' + block.bg);
-        changed(); refreshBars();
-      }),
+      btn('Fondo de la hoja: ' + (BG_LABEL[block.bg] || BG_LABEL.grid), icon('grid'), e => menu(e.currentTarget, Object.entries(BG_LABEL).map(([key, label]) => ({
+        label, on: block.bg === key, fn: () => {
+          stage.classList.remove('bg-' + block.bg);
+          block.bg = key;
+          stage.classList.add('bg-' + key);
+          changed(); refreshBars();
+        },
+      }))), false, 'bg-pick'),
       btn('Más espacio para dibujar', icon('grow'), () => { block.h += 300; changed(); sheet.fit(true); }),
     ],
   });

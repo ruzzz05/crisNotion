@@ -54,3 +54,78 @@ export function dragWidth(startPct, dx, boxW, min = 10) {
 }
 
 export const bottomOf = images => images.reduce((max, m) => Math.max(max, m.y + m.h), 0);
+
+// ---------- Ink ----------
+
+const r1 = v => Math.round(v * 10) / 10;
+
+/**
+ * Outline of a pen stroke as SVG path data: one closed shape with curved sides and round ends, as wide at
+ * each point as the pressure there. Filling it gives a smooth line at any zoom, with no visible joints.
+ * `p` is the flat list [x, y, pressure, x, y, pressure, …]; `size` is the pen thickness.
+ */
+export function strokePath(p, size) {
+  // Points too close together add nothing but wobble.
+  const pts = [];
+  for (let i = 0; i < p.length; i += 3) {
+    const last = pts.at(-1);
+    if (!last || Math.hypot(p[i] - last[0], p[i + 1] - last[1]) >= 0.6) pts.push([p[i], p[i + 1], size * (0.35 + (p[i + 2] ?? 0.5) * 1.3)]);
+  }
+  const n = pts.length;
+  if (n === 1) {
+    const [x, y, w] = pts[0], r = r1(Math.max(0.4, w / 2));
+    return `M${r1(x - r)} ${r1(y)}A${r} ${r} 0 1 0 ${r1(x + r)} ${r1(y)}A${r} ${r} 0 1 0 ${r1(x - r)} ${r1(y)}Z`;
+  }
+  // Even out the hand's tremor and sudden changes of pressure.
+  const c = pts.map((q, i) => {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
+    return i === 0 || i === n - 1 ? [q[0], q[1], (q[2] * 2 + a[2] + b[2]) / 4] : [(a[0] + 2 * q[0] + b[0]) / 4, (a[1] + 2 * q[1] + b[1]) / 4, (a[2] + 2 * q[2] + b[2]) / 4];
+  });
+  const left = [], right = [];
+  for (let i = 0; i < n; i++) {
+    const a = c[Math.max(0, i - 1)], b = c[Math.min(n - 1, i + 1)];
+    let dx = b[0] - a[0], dy = b[1] - a[1];
+    const len = Math.hypot(dx, dy) || 1, r = Math.max(0.4, c[i][2] / 2);
+    dx /= len; dy /= len;
+    left.push([c[i][0] - dy * r, c[i][1] + dx * r]);
+    right.push([c[i][0] + dy * r, c[i][1] - dx * r]);
+  }
+  const mid = (a, b) => `${r1((a[0] + b[0]) / 2)} ${r1((a[1] + b[1]) / 2)}`;
+  const at = q => `${r1(q[0])} ${r1(q[1])}`;
+  /** A curve through the points: each one is the control point between the midpoints around it. */
+  const side = s => {
+    let d = '';
+    for (let i = 1; i < s.length - 1; i++) d += `Q${at(s[i])} ${mid(s[i], s[i + 1])}`;
+    return d + `L${at(s.at(-1))}`;
+  };
+  const cap = (r, to) => `A${r1(r)} ${r1(r)} 0 0 0 ${at(to)}`;
+  const back = [...right].reverse();
+  return `M${at(left[0])}${side(left)}${cap(c[n - 1][2] / 2, back[0])}${side(back)}${cap(c[0][2] / 2, left[0])}Z`;
+}
+
+// ---------- Colour ----------
+
+/** '#rrggbb' from any '#rgb', 'rrggbb'… or null when it is not a colour. */
+export function cleanHex(v) {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(v ?? '').trim());
+  if (!m) return null;
+  const h = m[1].toLowerCase();
+  return '#' + (h.length === 3 ? [...h].map(ch => ch + ch).join('') : h);
+}
+
+/** h 0–360, s and l 0–100. */
+export function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+  const f = n => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)))).toString(16).padStart(2, '0');
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+export function hexToHsl(hex) {
+  const c = cleanHex(hex) || '#000000';
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min, l = (max + min) / 2;
+  const s = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+  const h = !d ? 0 : max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [Math.round(((h * 60) + 360) % 360), Math.round(s * 100), Math.round(l * 100)];
+}

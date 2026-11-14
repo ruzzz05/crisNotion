@@ -73,3 +73,37 @@ test('dragWidth turns a drag in pixels into a width in percent', () => {
   assert.equal(dragWidth(50, 9999, 400), 100);
   assert.equal(dragWidth(50, -9999, 400), 10);
 });
+
+test('strokePath outlines a stroke as one smooth closed shape', async () => {
+  const { strokePath } = await import('../public/js/sheet.js');
+  const line = [0, 0, 0.5, 10, 2, 0.5, 20, 8, 0.5, 30, 18, 0.5, 40, 20, 0.5];
+  const d = strokePath(line, 4);
+  assert.ok(d.startsWith('M') && d.trim().endsWith('Z'), d.slice(0, 40));
+  assert.ok(d.includes('Q'), 'the sides are curves, not straight segments');
+  assert.ok(d.includes('A'), 'the ends are rounded');
+  assert.ok(!/NaN|Infinity|undefined/.test(d));
+  assert.equal((d.match(/Z/g) || []).length, 1, 'one shape per stroke');
+});
+test('strokePath: a tap is a dot, and pressing harder makes the stroke wider', async () => {
+  const { strokePath } = await import('../public/js/sheet.js');
+  const dot = strokePath([5, 5, 0.5], 4);
+  assert.ok(dot.startsWith('M') && dot.includes('A') && !/NaN/.test(dot));
+  // A level line at y = 500: how far above and below it the outline reaches is its thickness.
+  const thick = d => { const ys = [...d.matchAll(/-?\d+(\.\d+)?/g)].map(m => Number(m[0])).filter(v => v > 400 && v < 600); return Math.max(...ys) - Math.min(...ys); };
+  const flat = pr => strokePath([0, 500, pr, 20, 500, pr, 40, 500, pr, 60, 500, pr], 6);
+  assert.ok(thick(flat(1)) > thick(flat(0.1)) * 2, 'pressing harder makes it wider: ' + thick(flat(1)) + ' vs ' + thick(flat(0.1)));
+  assert.ok(!/NaN/.test(strokePath([1, 1, 0.5, 1, 1, 0.5, 1, 1, 0.5], 4)), 'repeated points do not break it');
+});
+test('colours: sliders give a hex colour and a hex colour gives the sliders back', async () => {
+  const { hslToHex, hexToHsl, cleanHex } = await import('../public/js/sheet.js');
+  assert.equal(hslToHex(0, 100, 50), '#ff0000');
+  assert.equal(hslToHex(120, 100, 50), '#00ff00');
+  assert.equal(hslToHex(240, 100, 50), '#0000ff');
+  assert.equal(hslToHex(0, 0, 100), '#ffffff');
+  assert.deepEqual(hexToHsl('#ff0000'), [0, 100, 50]);
+  assert.deepEqual(hexToHsl(hslToHex(210, 60, 40)), [210, 60, 40]);
+  assert.equal(cleanHex('#AbC'), '#aabbcc');
+  assert.equal(cleanHex('1e90ff'), '#1e90ff');
+  assert.equal(cleanHex('rojo'), null);
+  assert.equal(cleanHex('#12345'), null);
+});

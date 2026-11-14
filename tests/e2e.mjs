@@ -71,7 +71,18 @@ await section('shell', async () => {
   const paper = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   check(paper === 'rgb(255, 255, 255)', 'the default theme is white: ' + paper);
   check(await count('.tabx') === 1 && (await text('.tabx.on')).includes('Inicio'), 'starts with one tab on Inicio');
-  check(await page.evaluate(() => [document.documentElement, document.body, document.querySelector('.scroll')].every(e => getComputedStyle(e).touchAction === 'manipulation')), 'a double tap does not zoom the screen (scrolling and pinching still work)');
+  check(await page.evaluate(() => [document.documentElement, document.body, document.querySelector('.scroll'), document.querySelector('.side-item'), document.querySelector('.view'), document.querySelector('.home-hero h1')].every(e => getComputedStyle(e).touchAction === 'manipulation')), 'a double tap does not zoom the screen (scrolling and pinching still work)');
+  const taps = await page.evaluate(() => {
+    const tap = (el, x) => { const e = new Event('touchend', { bubbles: true, cancelable: true }); Object.defineProperty(e, 'touches', { value: [] }); Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: 200 }] }); el.dispatchEvent(e); return e.defaultPrevented; };
+    const el = document.querySelector('.home-hero h1');
+    let clicks = 0; const btn = document.querySelector('.home-edit'); btn.addEventListener('click', () => clicks++);
+    const out = { first: tap(el, 300), second: tap(el, 304), far: tap(el, 600), b1: tap(btn, 900), b2: tap(btn, 902), clicks };
+    out.clicks = clicks;
+    return out;
+  });
+  check(!taps.first && taps.second && !taps.far, 'the second tap of a double tap is stopped before the browser zooms: ' + JSON.stringify(taps));
+  check(taps.b2 && taps.clicks === 1, 'a button tapped twice quickly still gets its second press');
+  if (await page.$eval('.view', e => e.classList.contains('editing'))) await page.click('.home-edit');
   check((await texts('.side-item')).join('|').includes('Horario') && (await texts('.side-item')).join('|').includes('Calendario'), 'sidebar lists Horario and Calendario');
   check(!(await text('.topbar')).includes('null'), 'top bar shows no stray "null" on a built-in view');
   const iconW = await page.$eval('.side-item[data-route=home] .ico', e => e.getBoundingClientRect().width);
@@ -207,6 +218,37 @@ await section('drawing', async () => {
   const lastSize = await page.evaluate(async () => new Promise(r => { const q = indexedDB.open('cuaderno'); q.onsuccess = () => { const g = q.result.transaction('drawings').objectStore('drawings').getAll(); g.onsuccess = () => r(g.result[0].strokes.at(-1).s); }; }));
   check(lastSize === 9.5, 'a stroke uses the thickness picked on the slider: ' + lastSize);
   check(await page.$eval('.draw-bar input.stroke-range', e => e.value === '9.5'), 'the slider keeps its value after the toolbar redraws');
+
+  const barH = await page.$eval('.blk[data-t=draw] .draw-bar', e => e.offsetHeight);
+  check(barH <= 46, 'the drawing tools fit in one compact row: ' + barH);
+  check(await page.$eval('.draw-base', c => c.width / c.clientWidth >= 2), 'the sheet is drawn with enough detail to look smooth');
+  const lastStroke = () => page.evaluate(async () => new Promise(r => { const q = indexedDB.open('cuaderno'); q.onsuccess = () => { const g = q.result.transaction('drawings').objectStore('drawings').getAll(); g.onsuccess = () => r(g.result[0].strokes.at(-1)); }; }));
+  const slide = (cls, v) => page.$eval('.color-pop .color-range.' + cls, (e, v) => { e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); }, String(v));
+  await page.click('.draw-bar [aria-label="Color del trazo"]'); await sleep(150);
+  check(await visible('.color-pop') && await count('.color-pop .color-inks .tb') === 7 && await count('.color-pop .color-range') === 3, 'the colour button opens the usual inks and sliders for any colour');
+  await slide('hue', 200); await slide('sat', 100); await slide('lum', 50); await sleep(100);
+  check(await page.$eval('.color-hex', e => e.value) === '#00aaff', 'the sliders show the colour as hexadecimal: ' + await page.$eval('.color-hex', e => e.value));
+  await press('Escape'); await sleep(100);
+  const nb2 = await (await page.$('.draw-live')).boundingBox();
+  await stroke([[nb2.x + 560, nb2.y + 60], [nb2.x + 600, nb2.y + 70], [nb2.x + 640, nb2.y + 60]]); await sleep(600);
+  check((await lastStroke()).c === '#00aaff', 'the pen writes in the colour made with the sliders: ' + (await lastStroke()).c);
+  await page.click('.draw-bar [aria-label="Color del trazo"]'); await sleep(150);
+  await page.$eval('.color-hex', e => { e.value = 'F00'; e.dispatchEvent(new Event('change', { bubbles: true })); }); await sleep(100);
+  check(await page.$eval('.color-pop .color-range.hue', e => e.value) === '0' && await page.$eval('.draw-bar [aria-label="Color del trazo"] .dot', e => getComputedStyle(e).backgroundColor) === 'rgb(255, 0, 0)', 'a colour can also be typed as hexadecimal');
+  await page.click('.color-pop [data-ink=ink]'); await sleep(100);
+  await press('Escape'); await sleep(100);
+  check(await page.evaluate(() => JSON.parse(localStorage.getItem('cuaderno:draw')).color) === 'ink', 'and the usual inks are one tap away');
+
+  await page.click('.blk[data-t=draw] .bg-pick'); await sleep(150);
+  const papers = (await texts('.pop .menu-label')).join('|');
+  check(papers === 'Cuadrícula|Rayas|Puntos|Tian zi ge (田字格)|Liso', 'the paper is chosen from a list: ' + papers);
+  await clickText('.pop .menu-item', 'Tian zi ge'); await sleep(150);
+  const paper = () => page.$eval('.blk[data-t=draw] .draw-stage', e => e.className.match(/bg-\w+/)[0] + ' ' + getComputedStyle(e).backgroundImage.slice(0, 24));
+  check((await paper()).startsWith('bg-tian url("data:image/svg'), 'tian zi ge paper: ' + await paper());
+  await page.click('.blk[data-t=draw] .bg-pick'); await sleep(150); await clickText('.pop .menu-item', 'Puntos'); await sleep(150);
+  check((await paper()).startsWith('bg-dots radial-gradient'), 'dotted paper: ' + await paper());
+  await shot('02a-draw-dots');
+  await page.click('.blk[data-t=draw] .bg-pick'); await sleep(150); await clickText('.pop .menu-item', 'Cuadrícula'); await sleep(150);
 });
 
 await section('pictures on the drawing sheet', async () => {
@@ -241,6 +283,11 @@ await section('pictures on the drawing sheet', async () => {
   check((await drawings())[0] === strokesBefore + 1 && Math.abs(d.x - c.x) < 1, 'with the pen you write on top of the picture without moving it');
   const above = await page.evaluate(() => { const i = document.querySelector('.draw-img'), cv = document.querySelector('.draw-base'); return !!(i.compareDocumentPosition(cv) & Node.DOCUMENT_POSITION_FOLLOWING); });
   check(above, 'ink is painted above the picture');
+  await (await page.$('.blk[data-t=draw] input.draw-file')).uploadFile(`${OUT}/big.png`); await sleep(800);
+  check(await count('.blk[data-t=draw] .draw-img') === 2 && await visible('.draw-del'), 'a selected picture shows a button to delete it');
+  await page.click('.draw-del'); await sleep(700);
+  check(await count('.blk[data-t=draw] .draw-img') === 1 && !(await visible('.draw-del')), 'the button deletes that picture and leaves the other');
+  await page.click('.draw-bar [aria-label="Bolígrafo"]');
   const saved = await page.evaluate(async () => new Promise(r => { const q = indexedDB.open('cuaderno'); q.onsuccess = () => { const g = q.result.transaction('drawings').objectStore('drawings').getAll(); g.onsuccess = () => r(g.result[0].images?.length); }; }));
   check(saved === 1, 'the picture is saved with the drawing');
   await shot('02b-draw-picture');
