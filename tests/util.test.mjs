@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ymd, parseYmd, dow, mins, hhmm, relDay, esc, col, tint, COLORS, greeting } from '../public/js/util.js';
+import { ymd, parseYmd, dow, mins, hhmm, relDay, esc, col, tint, COLORS, greeting, pasteHtml } from '../public/js/util.js';
 
 test('ymd formats a local date as yyyy-mm-dd with zero padding', () => {
   assert.equal(ymd(new Date(2026, 0, 5)), '2026-01-05');
@@ -82,4 +82,11 @@ test('every colour defines text and background variables in the light and the da
     assert.equal(css.split(`--c-${c}:`).length - 1, 2, `--c-${c} in two themes`);
     assert.equal(css.split(`--b-${c}:`).length - 1, 2, `--b-${c} in two themes`);
   }
+});
+
+test('pasteHtml keeps one line as plain escaped text', () => {
+  assert.equal(pasteHtml('hola <b>'), 'hola &lt;b&gt;');
+});
+test('pasteHtml turns a long text into one paragraph per line, blank lines included', () => {
+  assert.equal(pasteHtml('a\r\nb\n\nc\n'), '<div>a</div><div>b</div><div><br></div><div>c</div>');
 });

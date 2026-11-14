@@ -3,7 +3,7 @@
 // Every structural change edits `page.blocks` and then calls sync(), which reconciles the DOM by block id.
 import * as S from './store.js';
 import { h, icon, app, menu, pop, placeNear, toast } from './ui.js';
-import { COLORS, COLOR_NAMES, esc, sanitize } from './util.js';
+import { COLORS, COLOR_NAMES, esc, pasteHtml, sanitize } from './util.js';
 import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, pdfAssets, rangeEnd, rowOf, rowSizes } from './model.js';
 import { mountDrawing } from './drawing.js';
 import { imageBox, shrink } from './image.js';
@@ -35,7 +35,9 @@ const PLACEHOLDER = {
   todo: 'Tarea pendiente', toggle: 'Desplegable', quote: 'Cita vacía', callout: 'Escribe algo…', code: 'Código',
 };
 const SHORTCUTS = { '#': 'h1', '##': 'h2', '###': 'h3', '-': 'bullet', '*': 'bullet', '+': 'bullet', '[]': 'todo', '1.': 'num', '>': 'toggle', '"': 'quote' };
-const HIGHLIGHTS = [['Amarillo', 'rgba(255, 212, 0, 0.4)'], ['Verde', 'rgba(60, 200, 120, 0.35)'], ['Azul', 'rgba(35, 131, 226, 0.3)'], ['Rosa', 'rgba(255, 90, 170, 0.3)'], ['Rojo', 'rgba(255, 80, 80, 0.32)']];
+const HIGHLIGHTS = [['Amarillo', 'rgba(255, 212, 0, 0.4)'], ['Verde', 'rgba(60, 200, 120, 0.35)'], ['Azul', 'rgba(35, 131, 226, 0.3)'], ['Rosa', 'rgba(255, 90, 170, 0.3)'], ['Rojo', 'rgba(255, 80, 80, 0.32)'],
+  ['Naranja', 'rgba(255, 150, 40, 0.38)'], ['Lima', 'rgba(170, 210, 50, 0.4)'], ['Turquesa', 'rgba(30, 190, 185, 0.33)'], ['Celeste', 'rgba(90, 190, 255, 0.35)'],
+  ['Índigo', 'rgba(100, 110, 220, 0.3)'], ['Morado', 'rgba(160, 100, 220, 0.3)'], ['Granate', 'rgba(190, 50, 90, 0.3)'], ['Marrón', 'rgba(160, 110, 80, 0.35)'], ['Gris', 'rgba(140, 140, 140, 0.35)']];
 const COARSE = matchMedia('(pointer: coarse)');
 
 const mk = (t, extra = {}) => ({ id: S.uid(), t, html: '', indent: 0, ...extra });
@@ -477,6 +479,22 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     if (!document.execCommand('hiliteColor', false, color)) document.execCommand('backColor', false, color);
   }
 
+  /** Colours the selected text with a palette colour (data-c, so it follows the theme); '' goes back to the default. */
+  function textColor(c) {
+    const s = getSelection();
+    if (!s.rangeCount || s.isCollapsed) return;
+    const tmp = h('div');
+    tmp.append(s.getRangeAt(0).cloneContents());
+    for (const x of tmp.querySelectorAll('[data-c]')) x.replaceWith(...x.childNodes);
+    document.execCommand('insertHTML', false, c ? '<span data-c="' + c + '">' + tmp.innerHTML + '</span>' : tmp.innerHTML);
+  }
+
+  /** Aligns the paragraph(s) of the selection or caret: justifyLeft | justifyCenter | justifyRight. */
+  function align(cmd) {
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand(cmd);
+  }
+
   function linkPrompt(anchor) {
     const s = getSelection();
     if (!s.rangeCount) return;
@@ -509,6 +527,14 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     bb('Tachado', h('s', null, 'S'), fmt('strikeThrough')),
     bb('Código', icon('code'), inlineCode),
     bb('Enlace', icon('link'), e => linkPrompt(e.currentTarget)),
+    bb('Alinear a la izquierda', icon('alignL'), () => align('justifyLeft')),
+    bb('Centrar', icon('alignC'), () => align('justifyCenter')),
+    bb('Alinear a la derecha', icon('alignR'), () => align('justifyRight')),
+    bb('Color del texto', h('span', { class: 'tc-a' }, 'A'), e => {
+      const s = getSelection(), saved = s.rangeCount ? s.getRangeAt(0).cloneRange() : null;
+      const run = c => () => { if (saved) { s.removeAllRanges(); s.addRange(saved); } textColor(c); };
+      menu(e.currentTarget, [{ label: 'Predeterminado', icon: 'x', fn: run('') }, ...COLORS.map(c => ({ label: COLOR_NAMES[c].replace(/^./, x => x.toUpperCase()), swatch: 'background:var(--c-' + c + ')', fn: run(c) }))]);
+    }),
     bb('Resaltar', h('span', { class: 'hl-a' }, 'A'), e => {
       const s = getSelection(), saved = s.rangeCount ? s.getRangeAt(0).cloneRange() : null;
       const run = c => () => { if (saved) { s.removeAllRanges(); s.addRange(saved); } highlight(c); };
@@ -723,11 +749,10 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     const raw = (e.clipboardData.getData('text/plain') || '').replace(/\r/g, '');
     const id = c.parentElement.dataset.id;
     if (B(id).t === 'code') return document.execCommand('insertText', false, raw);
-    const lines = raw.split('\n');
-    document.execCommand('insertText', false, lines.shift());
-    let at = I(id), lastId = id;
-    for (const l of lines.filter(x => x.trim())) { const nb = mk('p', { html: esc(l), indent: ind(B(id)) }); page.blocks.splice(++at, 0, nb); lastId = nb.id; }
-    if (lastId !== id) { sync(); touch(); place(C(lastId), true); }
+    // A long text stays in this block, one paragraph per line, so parts of it can be coloured or centred apart.
+    const plain = raw.replace(/\n+$/, '');
+    if (plain.includes('\n')) document.execCommand('insertHTML', false, pasteHtml(plain));
+    else document.execCommand('insertText', false, plain);
   });
 
   const onHide = () => { if (document.visibilityState === 'hidden') flush(); };

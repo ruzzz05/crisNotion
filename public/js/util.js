@@ -59,6 +59,13 @@ export function plain(html) {
 
 export const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+/** Pasted text: one line stays inline; several lines become one paragraph (div) each, so they can be styled apart. */
+export function pasteHtml(raw) {
+  const lines = raw.replace(/\r/g, '').replace(/\n+$/, '').split('\n');
+  return lines.length === 1 ? esc(lines[0]) : lines.map(l => '<div>' + (esc(l) || '<br>') + '</div>').join('');
+}
+
+const ALIGNS = new Set(['left', 'center', 'right', 'justify']);
 const ALLOWED = new Set(['B', 'I', 'U', 'S', 'STRONG', 'EM', 'BR', 'SPAN', 'MARK', 'STRIKE', 'FONT', 'DIV', 'CODE', 'A']);
 /** Keep only inline formatting; stored HTML may come from an imported backup. */
 export function sanitize(html) {
@@ -71,9 +78,13 @@ export function sanitize(html) {
       continue;
     }
     const bg = el.style?.backgroundColor;
+    const align = el.tagName === 'DIV' && ALIGNS.has(el.style?.textAlign) ? el.style.textAlign : null;
+    const tone = el.tagName === 'SPAN' && COLORS.includes(el.dataset?.c) ? el.dataset.c : null;
     const href = el.tagName === 'A' ? el.getAttribute('href') : null;
     for (const a of [...el.attributes]) el.removeAttribute(a.name);
     if (bg && bg !== 'transparent') el.style.backgroundColor = bg;
+    if (align) el.style.textAlign = align;
+    if (tone) el.dataset.c = tone;
     if (href && /^(https?:|mailto:)/i.test(href)) { el.setAttribute('href', href); el.setAttribute('rel', 'noopener noreferrer'); }
   }
   return tpl.innerHTML;

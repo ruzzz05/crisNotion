@@ -438,6 +438,43 @@ await section('formatting bubble', async () => {
   check(!(await visible('.bubble')), 'bubble hides when the selection collapses');
 });
 
+await section('long text, alignment and colour', async () => {
+  await press('End', 'Enter'); await sleep(150);
+  const before = await count('.blk');
+  await page.evaluate(() => {
+    const dt = new DataTransfer(); dt.setData('text/plain', 'Encabezado\nlínea uno\n\nlínea dos');
+    document.activeElement.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  });
+  await sleep(200);
+  check(await count('.blk') === before, 'a long pasted text stays in one block: ' + before + ' -> ' + await count('.blk'));
+  const para = word => page.evaluate(word => {
+    const d = [...document.querySelectorAll('.blk .content div')].find(e => e.textContent === word);
+    const r = document.createRange(); r.selectNodeContents(d); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    document.dispatchEvent(new Event('selectionchange'));
+  }, word);
+  const lines = () => page.evaluate(() => [...document.querySelectorAll('.blk .content div')].map(e => e.textContent).join('|'));
+  check((await lines()).includes('Encabezado|línea uno||línea dos') || (await lines()).includes('Encabezado|línea uno|'), 'its lines are paragraphs of that block: ' + await lines());
+  await para('Encabezado'); await sleep(250);
+  await page.click('.bubble [aria-label="Centrar"]'); await sleep(150);
+  const centred = await page.evaluate(() => [...document.querySelectorAll('.blk .content div')].find(e => e.textContent === 'Encabezado')?.style.textAlign);
+  check(centred === 'center', 'a paragraph can be centred inside its block: ' + centred);
+  await para('línea uno'); await sleep(250);
+  await page.click('.bubble [aria-label="Color del texto"]'); await sleep(150);
+  await clickText('.pop .menu-item', 'Rojo'); await sleep(150);
+  const red = await page.evaluate(() => { const s = document.querySelector('.blk .content [data-c=red]'); return s && [s.textContent, getComputedStyle(s).color]; });
+  check(red && red[0] === 'línea uno' && red[1] === 'rgb(212, 76, 71)', 'the selected part takes the text colour: ' + JSON.stringify(red));
+  await para('línea dos'); await sleep(250);
+  await page.click('.bubble [aria-label="Resaltar"]'); await sleep(150);
+  const swatches = await count('.pop .menu-item');
+  check(swatches >= 12, 'many highlight colours are offered: ' + swatches);
+  await press('Escape'); await sleep(100);
+  const kept = await page.evaluate(async () => {
+    const { sanitize } = await import('/js/util.js');
+    return sanitize('<div style="text-align:right;position:fixed"><span data-c="red" style="x:y">a</span><span data-c="evil">b</span></div>');
+  });
+  check(kept === '<div style="text-align: right;"><span data-c="red">a</span><span>b</span></div>', 'saved text keeps alignment and palette colours only: ' + kept);
+});
+
 await section('block handle: drag, menu, colour', async () => {
   const order = async () => (await blocks()).map(b => b.text).slice(0, 2).join('|');
   check(await order() === 'Derivadas|Texto normal', 'before dragging: ' + await order());
