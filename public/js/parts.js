@@ -27,12 +27,17 @@ export function eventForm(ev = {}) {
     { key: 'kind', label: 'Tipo', type: 'select', value: ev.kind || 'examen', options: Object.entries(KINDS).map(([k, v]) => [k, v[0]]) },
     { key: 'date', label: 'Fecha', type: 'date', required: true, value: ev.date || ymd(new Date()) },
     { key: 'dayColor', label: 'Color del día', type: 'select', value: dayColor(ev), options: COLORS.map(c => [c, COLOR_NAMES[c].replace(/^./, x => x.toUpperCase())]), when: v => v.kind === 'festivo' },
+    { key: 'endDate', label: 'Hasta el (opcional, para varios días)', type: 'date', value: ev.endDate, when: v => v.kind === 'festivo' },
     { key: 'time', label: 'Hora (opcional)', type: 'time', value: ev.time, when: v => v.kind !== 'festivo' },
     { key: 'subjectId', label: 'Asignatura', type: 'select', value: ev.subjectId, options: subjectOptions(), when: v => v.kind !== 'festivo' },
     { key: 'notes', label: 'Notas', type: 'textarea', value: ev.notes },
   ], {
     focus: !ev.id,
-    onSave: v => { S.put({ ...ev, type: 'event', ...v }); },
+    onSave: v => {
+      if (v.endDate && v.endDate < v.date) return 'La fecha final no puede ser anterior a la inicial.';
+      if (!v.endDate) delete ev.endDate;
+      S.put({ ...ev, type: 'event', ...v });
+    },
     onDelete: ev.id && (() => S.remove(ev.id)),
     deleteText: '¿Eliminar este evento?',
   });

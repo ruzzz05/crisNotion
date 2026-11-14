@@ -58,3 +58,13 @@ test('the greeting names the person when there is a name to use', async () => {
   assert.equal(displayName('', 'cris.05'), 'Cris.05', 'otherwise the account name, capitalised');
   assert.equal(displayName(undefined, ''), '');
 });
+
+test('daysBetween lists every date from start to end, and only start when there is no valid end', async () => {
+  const { daysBetween } = await import('../public/js/util.js');
+  assert.deepEqual(daysBetween('2026-12-30', '2027-01-02'), ['2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02']);
+  assert.deepEqual(daysBetween('2026-03-28', '2026-03-30'), ['2026-03-28', '2026-03-29', '2026-03-30'], 'daylight saving does not skip or repeat a day');
+  assert.deepEqual(daysBetween('2026-05-01', ''), ['2026-05-01']);
+  assert.deepEqual(daysBetween('2026-05-01', '2026-05-01'), ['2026-05-01']);
+  assert.deepEqual(daysBetween('2026-05-05', '2026-05-01'), ['2026-05-05'], 'an end before the start is ignored');
+  assert.equal(daysBetween('2026-01-01', '2030-01-01').length, 366, 'ranges are capped');
+});

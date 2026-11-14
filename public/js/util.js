@@ -16,6 +16,19 @@ export const STARTER_ICONS = ['📘', '📗', '📕', '📙', '📓', '📚', '�
 const pad = n => String(n).padStart(2, '0');
 export const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 export const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+/** Every date from `start` to `end` inclusive (capped at a year); just `start` when `end` is missing or not after it. */
+export function daysBetween(start, end) {
+  const out = [start];
+  if (!end || end <= start) return out;
+  const d = parseYmd(start);
+  while (out.length < 366) {
+    d.setDate(d.getDate() + 1);
+    const k = ymd(d);
+    if (k > end) break;
+    out.push(k);
+  }
+  return out;
+}
 /** Day of week with Monday = 0. */
 export const dow = d => (d.getDay() + 6) % 7;
 export const mins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };

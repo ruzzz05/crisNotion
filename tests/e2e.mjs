@@ -642,6 +642,18 @@ await section('calendar and tasks', async () => {
   await page.evaluate(() => { const s = [...document.querySelectorAll('.modal .field')].find(x => x.textContent.startsWith('Color del día')).querySelector('select'); s.value = 'green'; });
   await clickText('.modal button', 'Guardar'); await sleep(200);
   check((await holiday()).join() === 'rgb(237, 243, 236)', 'the holiday colour can be changed: ' + await holiday());
+  // A range of dates: every day of it takes the colour.
+  await clickText('.cal-cell.holiday .cal-ev', 'Pilar'); await sleep(150);
+  check(await vis('Hasta el'), 'a holiday can have an end date');
+  await page.evaluate(() => { const f = [...document.querySelectorAll('.modal .field')].find(x => x.textContent.startsWith('Hasta el')).querySelector('input'); const s = document.querySelector('.modal form input[type=date]').value.split('-').map(Number); const d = new Date(s[0], s[1] - 1, s[2] + 2); f.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
+  await clickText('.modal button', 'Guardar'); await sleep(200);
+  const spanDays = await page.$$eval('.cal-cell.holiday:not(.out)', c => c.length);
+  check(spanDays >= 2 && spanDays <= 3, 'every day of the range is coloured: ' + spanDays);
+  await clickText('.cal-cell.holiday .cal-ev', 'Pilar'); await sleep(150);
+  await page.evaluate(() => { const f = [...document.querySelectorAll('.modal .field')].find(x => x.textContent.startsWith('Hasta el')).querySelector('input'); f.value = '2000-01-01'; });
+  await clickText('.modal button', 'Guardar'); await sleep(200);
+  check(await visible('.modal') && await visible('.toast'), 'an end date before the start is refused');
+  await press('Escape'); await sleep(150);
   await clickText('.side-item', 'Tareas'); await sleep(200);
   for (const t of ['Ejercicios 3 y 4', 'Leer capítulo 2']) { await page.click('.quick input'); await type(t, true); await sleep(100); }
   check(await count('.task') === 2, 'tasks are added with Enter');
