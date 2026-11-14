@@ -24,6 +24,7 @@ export function pageView(root, id, { focusTitle = false } = {}) {
   const unpaint = () => {
     scroller.style.backgroundColor = '';
     scroller.style.removeProperty('--bgimg');
+    scroller.style.removeProperty('--rule-c');
     scroller.classList.remove('has-bgimg');
   };
   function paint() {
@@ -36,7 +37,12 @@ export function pageView(root, id, { focusTitle = false } = {}) {
         scroller.style.setProperty('--bgimg', `url("${u}")`);
         scroller.classList.add('has-bgimg');
       });
-    } else scroller.style.backgroundColor = bg === 'white' ? 'var(--white)' : `var(--b-${bg})`;
+    } else if (bg === 'white') scroller.style.backgroundColor = 'var(--white)';
+    else {
+      scroller.style.backgroundColor = `var(--b-${bg})`;
+      // Ruled lines of the handwriting sheet: a darker tone of the page colour (brown on beige).
+      scroller.style.setProperty('--rule-c', bg === 'beige' || bg === 'brown' ? `color-mix(in srgb, var(--b-${bg}), #8b5e34 70%)` : `color-mix(in srgb, var(--b-${bg}), #000 45%)`);
+    }
   }
   const setBg = v => {
     if (page.bg?.startsWith('img:') && page.bg !== v) S.delBlob(page.bg.slice(4));

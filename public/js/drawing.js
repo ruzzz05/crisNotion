@@ -8,7 +8,7 @@
 //   mountSheet(stage, opts)  – one inkable surface, optionally with movable pictures under the ink
 import * as S from './store.js';
 import { h, icon, menu, pop, toast } from './ui.js';
-import { STROKE, bottomOf, cleanHex, hexToHsl, hitImage, hslToHex, inkSlots, placeImage, resizeFrom, strokePath, strokeSize } from './sheet.js';
+import { STROKE, bottomOf, cleanHex, hexToHsl, hitImage, hslToHex, inkSlots, placeImage, pushRecent, resizeFrom, strokePath, strokeSize } from './sheet.js';
 import { shrink } from './image.js';
 import { isDark, onTheme } from './theme.js';
 
@@ -33,6 +33,7 @@ try { Object.assign(prefs, JSON.parse(localStorage.getItem('cuaderno:draw') || '
 if (prefs.tool === 'move') prefs.tool = 'pen';
 prefs.size = strokeSize(prefs.size);
 prefs.slots = inkSlots(prefs.slots, INK); // the four quick colours on the toolbar
+prefs.recent = pushRecent(prefs.recent, null, INK); // up to eight colours used lately, newest first
 const bars = new Set();
 const overlays = new Set(); // per-sheet redraw of the picture handles, which only show with the move tool
 const remember = () => { try { localStorage.setItem('cuaderno:draw', JSON.stringify(prefs)); } catch { /* storage blocked */ } };
@@ -98,7 +99,11 @@ function colorPicker(anchor, slot) {
       box.style.setProperty('--sat', sat + '%');
       for (const b of inks.children) b.classList.toggle('on', b.dataset.ink === prefs.color);
     }
-    box.append(inks, h('div', { class: 'color-custom' }, ...sliders, h('div', { class: 'color-row' }, preview, hex)));
+    const recent = h('div', { class: 'color-recent' }, prefs.recent.map(c => h('button', {
+      class: 'tb color', type: 'button', 'data-color': c, 'aria-label': 'Usado hace poco', title: 'Usado hace poco',
+      onclick: () => { [hue, sat, lum] = hexToHsl(inkOf(c, colors)); use(c); show(); },
+    }, h('span', { class: 'dot', style: `background:${inkOf(c, colors)}` }))));
+    box.append(inks, prefs.recent.length ? recent : null, h('div', { class: 'color-custom' }, ...sliders, h('div', { class: 'color-row' }, preview, hex)));
     show();
   }, 'color-pop');
 }
@@ -322,6 +327,7 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
     if (!cur) return;
     const s = cur;
     cur = null;
+    prefs.recent = pushRecent(prefs.recent, s.c, INK); remember();
     undo.push(strokes);
     if (undo.length > 60) undo.shift();
     redo = [];

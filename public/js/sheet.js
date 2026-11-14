@@ -130,6 +130,14 @@ export function hexToHsl(hex) {
   return [Math.round(((h * 60) + 360) % 360), Math.round(s * 100), Math.round(l * 100)];
 }
 
+/** Colours used lately: `color` goes first, repeats and invalid entries are dropped, at most eight are kept. */
+export function pushRecent(stored, color, names) {
+  const ok = c => (names.includes(c) ? c : cleanHex(c));
+  const first = ok(color);
+  const list = (Array.isArray(stored) ? stored : []).map(ok).filter(Boolean);
+  return [...new Set([...(first ? [first] : []), ...list])].slice(0, 8);
+}
+
 /** The four quick colours shown on the toolbar: what was stored where it is valid, the defaults elsewhere. */
 export function inkSlots(stored, names) {
   const list = Array.isArray(stored) ? stored : [];

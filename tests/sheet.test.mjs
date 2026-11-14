@@ -115,3 +115,17 @@ test('inkSlots: the four quick colours of the toolbar are always four valid colo
   assert.deepEqual(inkSlots(['red', '#ABC', 'nope', 'blue', 'green', 'ink'], names), ['red', '#aabbcc', 'red', 'blue']);
   assert.deepEqual(inkSlots(['#123456'], names), ['#123456', 'blue', 'red', 'green']);
 });
+
+test('pushRecent: the colours used lately, newest first, no repeats, at most eight', async () => {
+  const { pushRecent } = await import('../public/js/sheet.js');
+  const names = ['ink', 'blue', 'red'];
+  assert.deepEqual(pushRecent(undefined, '#ABC', names), ['#aabbcc']);
+  assert.deepEqual(pushRecent(['red', '#123456'], '#123456', names), ['#123456', 'red']);
+  assert.deepEqual(pushRecent(['red'], 'nope', names), ['red'], 'invalid colours are ignored');
+  assert.deepEqual(pushRecent(['x', 'blue', 'blue', '#zzz'], 'red', names), ['red', 'blue'], 'stored junk is dropped');
+  let l = [];
+  for (let i = 0; i < 12; i++) l = pushRecent(l, '#' + String(i).padStart(2, '0') + '0000', names);
+  assert.equal(l.length, 8);
+  assert.equal(l[0], '#110000');
+  assert.equal(l[7], '#040000');
+});

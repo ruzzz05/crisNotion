@@ -237,6 +237,7 @@ await section('drawing', async () => {
   await stroke([[nb2.x + 560, nb2.y + 60], [nb2.x + 600, nb2.y + 70], [nb2.x + 640, nb2.y + 60]]); await sleep(600);
   check((await lastStroke()).c === '#00aaff', 'the pen writes in the colour made with the sliders: ' + (await lastStroke()).c);
   await page.click('.blk[data-t=draw] .draw-bar .tb.color.on'); await sleep(150);
+  check(await page.$$eval('.color-recent .tb', b => b.map(x => x.dataset.color)).then(a => a[0] === '#00aaff' && a.length <= 8), 'a colour used for writing is kept among the recent ones');
   await page.$eval('.color-hex', e => { e.value = 'F00'; e.dispatchEvent(new Event('change', { bubbles: true })); }); await sleep(100);
   check(await page.$eval('.color-pop .color-range.hue', e => e.value) === '0' && await page.$eval('.blk[data-t=draw] .draw-bar .tb.color.on .dot', e => getComputedStyle(e).backgroundColor) === 'rgb(255, 0, 0)', 'a colour can also be typed as hexadecimal');
   await page.click('.color-pop [data-ink=ink]'); await sleep(100);
@@ -248,7 +249,7 @@ await section('drawing', async () => {
   check(papers === 'Cuadrícula|Rayas|Puntos|Tian zi ge (田字格)|Liso', 'the paper is chosen from a list: ' + papers);
   await clickText('.pop .menu-item', 'Tian zi ge'); await sleep(150);
   const paper = () => page.$eval('.blk[data-t=draw] .draw-stage', e => e.className.match(/bg-\w+/)[0] + ' ' + getComputedStyle(e).backgroundImage.slice(0, 24));
-  check((await paper()).startsWith('bg-tian url("data:image/svg'), 'tian zi ge paper: ' + await paper());
+  check((await paper()).startsWith('bg-tian none') && await page.$eval('.blk[data-t=draw] .draw-stage', e => getComputedStyle(e, '::before').maskImage.includes('svg') || getComputedStyle(e, '::before').webkitMaskImage.includes('svg')), 'tian zi ge paper: ' + await paper());
   await page.click('.blk[data-t=draw] .bg-pick'); await sleep(150); await clickText('.pop .menu-item', 'Puntos'); await sleep(150);
   check((await paper()).startsWith('bg-dots radial-gradient'), 'dotted paper: ' + await paper());
   await shot('02a-draw-dots');
@@ -527,7 +528,12 @@ await section('page background', async () => {
   await clickText('.page-ctl button', 'Fondo');
   await page.click('.pop .bg-grid [data-bg="blue"]'); await sleep(150);
   check((await bg()).c === 'rgb(231, 243, 248)' && (await bg()).i === 'none', 'choosing a colour replaces the picture: ' + JSON.stringify(await bg()));
-  check(await page.$eval('.blk[data-t=draw] .draw', e => getComputedStyle(e).backgroundColor) === 'rgba(0, 0, 0, 0)' && await page.$eval('.blk[data-t=draw] .draw-stage', e => getComputedStyle(e).backgroundColor) === 'rgba(0, 0, 0, 0)', 'the handwriting sheet takes the colour of the page');
+  const sheet = () => page.$eval('.blk[data-t=draw] .draw-stage', e => { const s = getComputedStyle(e); return { bg: getComputedStyle(e.closest('.draw')).backgroundColor, rule: s.getPropertyValue('--rule-c').trim() }; });
+  check((await sheet()).bg === 'rgb(255, 255, 255)', 'the handwriting sheet is white whatever the page colour: ' + JSON.stringify(await sheet()));
+  check(/^color-mix/.test((await sheet()).rule) && (await sheet()).rule.toLowerCase().includes('#e7f3f8'), 'its lines are a darker tone of the page colour: ' + (await sheet()).rule);
+  await page.hover('.page-head'); await clickText('.page-ctl button', 'Fondo'); await page.click('.pop .bg-grid [data-bg="beige"]'); await sleep(150);
+  check((await sheet()).rule.includes('#8b5e34'), 'on a beige page the lines are brown: ' + (await sheet()).rule);
+  await page.hover('.page-head'); await clickText('.page-ctl button', 'Fondo'); await page.click('.pop .bg-grid [data-bg="blue"]'); await sleep(150);
   await clickText('.side-item', 'Inicio'); await sleep(200);
   check((await bg()).c === 'rgba(0, 0, 0, 0)', 'other views keep the default background');
   await clickText('.book .tree-row .tree-title', 'Matemáticas II'); await sleep(250);

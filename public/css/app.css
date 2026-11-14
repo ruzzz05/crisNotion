@@ -304,7 +304,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--b
 
 /* Drawing */
 /* The sheet has no colour of its own: it shows the background of the page it is on. */
-.draw { flex: 1; min-width: 0; margin: 4px 0; border: 1px solid var(--line2); border-radius: 6px; overflow: hidden; }
+.draw { flex: 1; min-width: 0; margin: 4px 0; border: 1px solid var(--line2); border-radius: 6px; overflow: hidden; background: var(--white); }
 .draw-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0; padding: 3px 4px; border-bottom: 1px solid var(--line); background: var(--side); }
 .tb { flex: none; min-width: 30px; height: 30px; display: inline-grid; place-items: center; border-radius: 6px; color: var(--fg2); }
 .tb:hover { background: var(--hover); }
@@ -316,6 +316,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--b
 .tb.color .dot { box-shadow: 0 0 0 1px var(--line2); }
 .color-pop { min-width: 0; width: 244px; padding: 8px; }
 .color-inks { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 8px; }
+.color-recent { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 8px; padding-top: 6px; border-top: 1px solid var(--line2); }
 .color-custom { display: flex; flex-direction: column; gap: 8px; }
 .color-range { -webkit-appearance: none; appearance: none; width: 100%; height: 16px; margin: 0; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line2); cursor: pointer; touch-action: none; }
 .color-range::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 1px solid rgba(0, 0, 0, .35); box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
@@ -330,7 +331,7 @@ input.color-hex { min-height: 32px; font-family: var(--mono); font-size: .875rem
 .stroke-dot { width: 22px; height: 22px; flex: none; display: grid; place-items: center; }
 .stroke-range { width: 72px; height: 28px; margin: 0; accent-color: var(--fg); cursor: pointer; touch-action: pan-y; }
 @media (pointer: coarse) { .tb { min-width: 36px; height: 36px; } }
-.draw-stage { position: relative; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; --u: 1px; --rule: rgba(55, 110, 200, .14); }
+.draw-stage { position: relative; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; --u: 1px; --rc: var(--rule-c, #376ec8); --rule: color-mix(in srgb, var(--rc) 22%, transparent); }
 .draw-imgs { position: absolute; inset: 0; overflow: hidden; }
 .draw-img { position: absolute; display: block; max-width: none; pointer-events: none; -webkit-user-drag: none; border-radius: 2px; }
 .draw-del { position: absolute; z-index: 3; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--red); color: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
@@ -342,9 +343,9 @@ input.color-hex { min-height: 32px; font-family: var(--mono); font-size: .875rem
 .draw-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 .draw-live { cursor: crosshair; }
 .draw-stage.bg-grid { background-image: linear-gradient(var(--rule) 1px, transparent 1px), linear-gradient(90deg, var(--rule) 1px, transparent 1px); background-size: calc(var(--u) * 25) calc(var(--u) * 25); }
-.draw-stage.bg-dots { background-image: radial-gradient(circle, rgba(55, 110, 200, .5) calc(var(--u) * 1.6), transparent calc(var(--u) * 2.1)); background-size: calc(var(--u) * 25) calc(var(--u) * 25); background-position: calc(var(--u) * 12.5) calc(var(--u) * 12.5); }
+.draw-stage.bg-dots { background-image: radial-gradient(circle, color-mix(in srgb, var(--rc) 60%, transparent) calc(var(--u) * 1.6), transparent calc(var(--u) * 2.1)); background-size: calc(var(--u) * 25) calc(var(--u) * 25); background-position: calc(var(--u) * 12.5) calc(var(--u) * 12.5); }
 /* Tian zi ge: square cells with a dashed cross, for practising characters. */
-.draw-stage.bg-tian { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23376ec8'%3E%3Crect x='.5' y='.5' width='99' height='99' stroke-opacity='.45'/%3E%3Cpath d='M50 0v100M0 50h100' stroke-opacity='.3' stroke-dasharray='4 4'/%3E%3C/g%3E%3C/svg%3E"); background-size: calc(var(--u) * 100) calc(var(--u) * 100); }
+.draw-stage.bg-tian::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: var(--rc); opacity: .55; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23000'%3E%3Crect x='.5' y='.5' width='99' height='99' stroke-opacity='.85'/%3E%3Cpath d='M50 0v100M0 50h100' stroke-opacity='.55' stroke-dasharray='4 4'/%3E%3C/g%3E%3C/svg%3E") 0 0 / calc(var(--u) * 100) calc(var(--u) * 100); mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23000'%3E%3Crect x='.5' y='.5' width='99' height='99' stroke-opacity='.85'/%3E%3Cpath d='M50 0v100M0 50h100' stroke-opacity='.55' stroke-dasharray='4 4'/%3E%3C/g%3E%3C/svg%3E") 0 0 / calc(var(--u) * 100) calc(var(--u) * 100); }
 .draw-stage.bg-lines { background-image: linear-gradient(var(--rule) 1px, transparent 1px); background-size: 100% calc(var(--u) * 40); background-position: 0 calc(var(--u) * 39); }
 
 /* PDF */
