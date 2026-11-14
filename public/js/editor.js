@@ -649,6 +649,8 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     if (e.key === 'Enter' && !e.shiftKey) {
       if (b.t === 'code') return;
       e.preventDefault();
+      // In a plain text block Enter is a new line of the same block; another block comes from the + button (or Ctrl/Cmd+Enter).
+      if (b.t === 'p' && !e.ctrlKey && !e.metaKey) { document.execCommand('defaultParagraphSeparator', false, 'div'); document.execCommand('insertParagraph'); return; }
       const blank = c.textContent === '';
       if (blank && (b.t !== 'p' || ind(b) > 0)) return ind(b) > 0 && (LIST.has(b.t) || b.t === 'p') ? shiftIndent(id, -1) : setType(id, 'p');
       const follow = LIST.has(b.t) ? b.t : 'p';

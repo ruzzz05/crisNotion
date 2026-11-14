@@ -42,6 +42,8 @@ const clickText = async (sel, t) => {
   await sleep(150);
 };
 const type = async (s, enter = false) => { await page.keyboard.type(s); if (enter) await page.keyboard.press('Enter'); };
+// Enter inside a text block is a new line of that block; Ctrl+Enter starts another block.
+const newBlock = async () => { await page.keyboard.down('Control'); await page.keyboard.press('Enter'); await page.keyboard.up('Control'); await sleep(150); };
 const press = async (...keys) => { for (const k of keys) await page.keyboard.press(k); };
 const blocks = () => page.$$eval('.blk', els => els.map(e => ({ t: e.dataset.t, i: Number(e.style.getPropertyValue('--ind') || 0), text: e.querySelector('.content')?.textContent ?? '', hidden: e.offsetParent === null })));
 const shape = async () => (await blocks()).map(b => b.t + b.i).join(' ');
@@ -123,7 +125,7 @@ await section('slash menu', async () => {
 });
 
 await section('typing, lists and nesting', async () => {
-  await type('Texto normal', true);
+  await type('Texto normal'); await newBlock();
   await type('- uno', true);
   await type('dos'); await press('Tab');
   check(await shape() === 'h10 p0 bullet0 bullet1', 'Tab nests a list item: ' + await shape());
@@ -152,7 +154,7 @@ await section('toggle', async () => {
   await page.click('.blk[data-t=toggle] .tog'); await sleep(80);
   check(!(await blocks()).at(-1).hidden, 'opening the toggle shows it again');
   await caretIn('paso oculto');
-  await press('Enter', 'Backspace');
+  await newBlock(); await press('Backspace');
   check((await blocks()).at(-1).i === 0, 'Backspace on an empty nested block outdents it');
 });
 
@@ -439,7 +441,7 @@ await section('formatting bubble', async () => {
 });
 
 await section('long text, alignment and colour', async () => {
-  await press('End', 'Enter'); await sleep(150);
+  await press('End'); await newBlock();
   const before = await count('.blk');
   await page.evaluate(() => {
     const dt = new DataTransfer(); dt.setData('text/plain', 'Encabezado\nlínea uno\n\nlínea dos');
@@ -473,6 +475,17 @@ await section('long text, alignment and colour', async () => {
     return sanitize('<div style="text-align:right;position:fixed"><span data-c="red" style="x:y">a</span><span data-c="evil">b</span></div>');
   });
   check(kept === '<div style="text-align: right;"><span data-c="red">a</span><span>b</span></div>', 'saved text keeps alignment and palette colours only: ' + kept);
+});
+
+await section('enter stays inside a text block', async () => {
+  await newBlock();
+  const n = await count('.blk');
+  await type('uno'); await press('Enter'); await type('dos'); await sleep(100);
+  check(await count('.blk') === n, 'Enter in a text block does not create another block: ' + n + ' -> ' + await count('.blk'));
+  const inner = await page.evaluate(() => document.activeElement.innerText);
+  check(/uno/.test(inner) && /dos/.test(inner), 'both lines live in that block: ' + JSON.stringify(inner));
+  await newBlock();
+  check(await count('.blk') === n + 1, 'Ctrl+Enter starts a new block: ' + await count('.blk'));
 });
 
 await section('block handle: drag, menu, colour', async () => {
@@ -542,7 +555,7 @@ await section('columns', async () => {
   await menuOf(1, 'Poner al lado del bloque anterior');
   check(await beside(), 'the block menu places a block beside the previous one');
   await caretIn('Texto normal');
-  await press('Enter'); await type('debajo de la fila');
+  await newBlock(); await type('debajo de la fila');
   check(await top3() === 'Texto normal|Derivadas|debajo de la fila', 'Enter inside a column continues below the row: ' + await top3());
   const a = await box('Texto normal'), b = await box('Derivadas'), c = await box('debajo de la fila');
   check(c.t >= Math.max(a.b, b.b) - 1 && c.r - c.l > (a.r - a.l) * 1.5, 'the block under a row is full width again');
