@@ -257,7 +257,7 @@ await section('drawing', async () => {
   const ruleC = () => page.$eval('.blk[data-t=draw] .draw-stage', e => e.style.getPropertyValue('--rule-c'));
   await page.click('.blk[data-t=draw] .rule-pick'); await sleep(150);
   const rules = (await texts('.pop .menu-label')).join('|');
-  check(rules.startsWith('Automático|Gris|Marrón') && rules.endsWith('Rojo'), 'the colour of the lines is chosen from a list: ' + rules);
+  check(rules.startsWith('Automático|Gris|Marrón') && rules.endsWith('Granate'), 'the colour of the lines is chosen from a list: ' + rules);
   await clickText('.pop .menu-item', 'Rojo'); await sleep(150);
   check(await ruleC() === 'var(--c-red)' && await page.$eval('.blk[data-t=draw] .draw-stage', e => getComputedStyle(e).getPropertyValue('--rc').trim()) !== '', 'the lines take the chosen colour: ' + await ruleC());
   await page.click('.blk[data-t=draw] .rule-pick'); await sleep(150); await clickText('.pop .menu-item', 'Automático'); await sleep(150);
@@ -638,20 +638,20 @@ await section('calendar and tasks', async () => {
   await clickText('.modal button', 'Guardar'); await sleep(200);
   const holiday = () => page.evaluate(() => { const c = [...document.querySelectorAll('.cal-cell.holiday')]; return c.map(x => getComputedStyle(x).backgroundColor); });
   check((await holiday()).join() === 'rgb(251, 236, 221)', 'the day of a holiday is light orange: ' + await holiday());
-  await clickText('.cal-cell.holiday .cal-ev', 'Pilar'); await sleep(150);
+  await page.click('.cal-cell.holiday'); await sleep(150);
   await page.evaluate(() => { const s = [...document.querySelectorAll('.modal .field')].find(x => x.textContent.startsWith('Color del día')).querySelector('select'); s.value = 'green'; });
   await clickText('.modal button', 'Guardar'); await sleep(200);
   check((await holiday()).join() === 'rgb(237, 243, 236)', 'the holiday colour can be changed: ' + await holiday());
   // A range of dates: every day of it takes the colour.
-  await clickText('.cal-cell.holiday .cal-ev', 'Pilar'); await sleep(150);
+  await page.click('.cal-cell.holiday'); await sleep(150);
   check(await vis('Hasta el'), 'a holiday can have an end date');
   await page.evaluate(() => { const f = [...document.querySelectorAll('.modal .field')].find(x => x.textContent.startsWith('Hasta el')).querySelector('input'); const s = document.querySelector('.modal form input[type=date]').value.split('-').map(Number); const d = new Date(s[0], s[1] - 1, s[2] + 2); f.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
   await clickText('.modal button', 'Guardar'); await sleep(200);
   const spanDays = await page.$$eval('.cal-cell.holiday:not(.out)', c => c.length);
   check(spanDays >= 2 && spanDays <= 3, 'every day of the range is coloured: ' + spanDays);
   const named = (await texts('.cal-ev')).filter(t => t.includes('Pilar')).length;
-  check(named === 2, 'a multi-day event shows its name on the first and last day only: ' + named);
-  await clickText('.cal-cell.holiday .cal-ev', 'Pilar'); await sleep(150);
+  check(named === 0, 'a holiday only colours its days, with no chip: ' + named);
+  await page.click('.cal-cell.holiday'); await sleep(150);
   await page.evaluate(() => { const f = [...document.querySelectorAll('.modal .field')].find(x => x.textContent.startsWith('Hasta el')).querySelector('input'); f.value = '2000-01-01'; });
   await clickText('.modal button', 'Guardar'); await sleep(200);
   check(await visible('.modal') && await visible('.toast'), 'an end date before the start is refused');

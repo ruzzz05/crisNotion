@@ -13,7 +13,8 @@ export function calendar(root) {
   const marks = {}, holidays = {};
   const all = kinds();
   for (const e of S.all('event').sort(byDate)) for (const day of daysBetween(e.date, e.endDate)) {
-    if (e.kind === 'festivo') holidays[day] ??= dayColor(e);
+    // A holiday only colours its days: no chip, just its name as a tooltip; a tap on the day edits it.
+    if (e.kind === 'festivo') { holidays[day] ??= { color: dayColor(e), event: e }; continue; }
     // A multi-day event names itself on its first and last day; the days between only show the bar.
     const part = spanPart(e, day), named = part !== 'mid';
     (marks[day] ??= []).push({ label: named ? (e.time && part !== 'end' ? e.time + ' ' : '') + e.title : ' ', title: e.title, color: (all[e.kind] || KINDS.evento)[1], open: () => eventForm(e) });
@@ -31,10 +32,11 @@ export function calendar(root) {
     const list = marks[key] || [];
     const cell = h('div', {
       class: 'cal-cell' + (d.getMonth() !== month.getMonth() ? ' out' : '') + (key === today ? ' today' : '') + (i % 7 > 4 ? ' weekend' : '') + (holidays[key] ? ' holiday' : ''),
-      style: holidays[key] ? `--day:var(--b-${holidays[key]})` : null,
+      style: holidays[key] ? `--day:var(--b-${holidays[key].color})` : null,
+      title: holidays[key]?.event.title,
       role: 'button', tabindex: '0', 'aria-label': `${fmtLong(d)}: añadir evento`,
-      onclick: e => { if (!e.target.closest('.cal-ev')) eventForm({ date: key }); },
-      onkeydown: e => { if (e.key === 'Enter' && e.target === cell) eventForm({ date: key }); },
+      onclick: e => { if (!e.target.closest('.cal-ev')) eventForm(holidays[key]?.event || { date: key }); },
+      onkeydown: e => { if (e.key === 'Enter' && e.target === cell) eventForm(holidays[key]?.event || { date: key }); },
     },
     h('span', { class: 'cal-num' }, d.getDate() === 1 ? `${d.getDate()} ${d.toLocaleDateString('es-ES', { month: 'short' })}` : d.getDate()),
     list.slice(0, 3).map(m => h('button', { class: 'cal-ev', type: 'button', style: tint(m.color), title: m.title || m.label, onclick: m.open }, m.label)),
