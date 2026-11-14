@@ -649,6 +649,8 @@ await section('calendar and tasks', async () => {
   await clickText('.modal button', 'Guardar'); await sleep(200);
   const spanDays = await page.$$eval('.cal-cell.holiday:not(.out)', c => c.length);
   check(spanDays >= 2 && spanDays <= 3, 'every day of the range is coloured: ' + spanDays);
+  const named = (await texts('.cal-ev')).filter(t => t.includes('Pilar')).length;
+  check(named === 2, 'a multi-day event shows its name on the first and last day only: ' + named);
   await clickText('.cal-cell.holiday .cal-ev', 'Pilar'); await sleep(150);
   await page.evaluate(() => { const f = [...document.querySelectorAll('.modal .field')].find(x => x.textContent.startsWith('Hasta el')).querySelector('input'); f.value = '2000-01-01'; });
   await clickText('.modal button', 'Guardar'); await sleep(200);
@@ -660,6 +662,26 @@ await section('calendar and tasks', async () => {
   await page.click('.task .todo-box'); await sleep(120);
   check(await count('.task.done') === 1, 'a task can be ticked');
   await shot('08-tasks');
+  // Own calendar kinds
+  await clickText('.side-item', 'Calendario'); await sleep(200);
+  await clickText('.view-actions button', 'Tipos'); await sleep(150);
+  await clickText('.modal button', 'Nuevo tipo'); await sleep(150);
+  await page.evaluate(() => { document.querySelector('.modal form input[type=text]').value = 'Gimnasio'; });
+  await clickText('.modal button', 'Guardar'); await sleep(200);
+  await clickText('.view-actions button', 'Nuevo'); await sleep(150);
+  check((await page.$$eval('.modal form select option', o => o.map(x => x.textContent))).includes('Gimnasio'), 'a custom kind is offered when creating an event');
+  await press('Escape'); await sleep(150);
+  // Task categories and drag to reorder
+  await clickText('.side-item', 'Tareas'); await sleep(200);
+  await clickText('.view-actions button', 'Categoría'); await sleep(150);
+  await page.evaluate(() => { document.querySelector('.modal form input[type=text]').value = 'Casa'; });
+  await clickText('.modal button', 'Guardar'); await sleep(200);
+  check(await count('.task-group') === 2, 'a task category adds a group');
+  const box = async sel => { const r = await page.$eval(sel, e => { const b = e.getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; }); return r; };
+  const [hx, hy] = await box('.task-group[data-group=""] .task:not(.done) .task-drag');
+  const [tx, ty] = await box('.task-group:not([data-group=""]) .group-empty');
+  await page.mouse.move(hx, hy); await page.mouse.down(); await page.mouse.move(tx, ty, { steps: 6 }); await page.mouse.up(); await sleep(250);
+  check(await count('.task-group:not([data-group=""]) .task') === 1, 'dragging a task into a category moves it there');
   await clickText('.side-item', 'Inicio'); await sleep(250);
   check((await text('.view')).includes('Examen de derivadas') && (await text('.view')).includes('Matemáticas II'), 'home shows upcoming events and recent pages');
   await shot('09-home');

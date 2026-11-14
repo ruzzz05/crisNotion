@@ -299,3 +299,37 @@ export function migrate(docs) {
   }
   return changed;
 }
+
+// ---------- Calendar: multi-day events and custom kinds ----------
+
+/** Where `day` falls in an event: 'single' (one day), 'start', 'mid' or 'end'. Only the ends carry the title. */
+export function spanPart(e, day) {
+  if (!e.endDate || e.endDate <= e.date) return 'single';
+  return day === e.date ? 'start' : day === e.endDate ? 'end' : 'mid';
+}
+
+/** Built-in kinds {id: [name, color]} followed by the user's own ({id, name, color} docs). Built-ins win on a clash. */
+export function mergeKinds(builtin, customs) {
+  const out = { ...builtin };
+  for (const c of customs) if (!(c.id in out)) out[c.id] = [c.name, c.color];
+  return out;
+}
+
+// ---------- Tasks: categories and manual order ----------
+
+/** `items` with `item` (an object or an id in the list) moved to `index` of the list without it. */
+export function placeAt(items, item, index) {
+  const it = typeof item === 'object' ? item : items.find(x => x.id === item);
+  const rest = items.filter(x => x.id !== it.id);
+  return [...rest.slice(0, index), it, ...rest.slice(index)];
+}
+
+/** Tasks split by category: [{list: null, tasks}, {list, tasks}…]. Tasks of a missing list count as uncategorised. */
+export function groupTasks(tasks, lists) {
+  const ids = new Set(lists.map(l => l.id));
+  const sorted = [...tasks].sort(byOrder);
+  return [
+    { list: null, tasks: sorted.filter(t => !ids.has(t.listId)) },
+    ...[...lists].sort(byOrder).map(list => ({ list, tasks: sorted.filter(t => t.listId === list.id) })),
+  ];
+}

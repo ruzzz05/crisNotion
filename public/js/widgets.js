@@ -158,7 +158,7 @@ function events() {
 
 function tasks() {
   const list = S.all('task').filter(t => !t.done).sort(byDue).slice(0, 8);
-  return { el: section('tasks', 'Tareas pendientes', link('Nueva tarea', () => taskForm()), list.length ? h('div', { class: 'rows' }, list.map(taskRow)) : empty('Nada pendiente.')) };
+  return { el: section('tasks', 'Tareas pendientes', link('Nueva tarea', () => taskForm()), list.length ? h('div', { class: 'rows' }, list.map(t => taskRow(t))) : empty('Nada pendiente.')) };
 }
 
 // ---------- Clock ----------

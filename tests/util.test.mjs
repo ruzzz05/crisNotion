@@ -68,3 +68,18 @@ test('daysBetween lists every date from start to end, and only start when there 
   assert.deepEqual(daysBetween('2026-05-05', '2026-05-01'), ['2026-05-05'], 'an end before the start is ignored');
   assert.equal(daysBetween('2026-01-01', '2030-01-01').length, 366, 'ranges are capped');
 });
+
+import { readFileSync } from 'node:fs';
+import { COLOR_NAMES } from '../public/js/util.js';
+
+test('there are at least 12 colours, each with a name', () => {
+  assert.ok(COLORS.length >= 12);
+  for (const c of COLORS) assert.ok(COLOR_NAMES[c], c);
+});
+test('every colour defines text and background variables in the light and the dark theme', () => {
+  const css = readFileSync(new URL('../public/css/app.css', import.meta.url), 'utf8');
+  for (const c of COLORS) {
+    assert.equal(css.split(`--c-${c}:`).length - 1, 2, `--c-${c} in two themes`);
+    assert.equal(css.split(`--b-${c}:`).length - 1, 2, `--b-${c} in two themes`);
+  }
+});

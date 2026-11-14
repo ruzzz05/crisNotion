@@ -5,8 +5,8 @@
   --hover: rgba(55, 53, 47, .06); --active: rgba(55, 53, 47, .1); --line: rgba(55, 53, 47, .09); --line2: rgba(55, 53, 47, .16);
   --blue: #2383E2; --red: #EB5757; --card: #FFFFFF; --soft: #F1F1EF; --code: rgba(135, 131, 120, .15);
   --shadow: rgba(15, 15, 15, .05) 0 0 0 1px, rgba(15, 15, 15, .1) 0 3px 6px, rgba(15, 15, 15, .2) 0 9px 24px;
-  --c-gray: #787774; --c-brown: #9F6B53; --c-orange: #D9730D; --c-yellow: #CB912F; --c-green: #448361; --c-blue: #337EA9; --c-purple: #9065B0; --c-pink: #C14C8A; --c-red: #D44C47;
-  --b-gray: #F1F1EF; --b-brown: #F4EEEE; --b-orange: #FBECDD; --b-yellow: #FBF3DB; --b-green: #EDF3EC; --b-blue: #E7F3F8; --b-purple: #F6F3F9; --b-pink: #FAF1F5; --b-red: #FDEBEC; --b-beige: #F5F0E6;
+  --c-gray: #787774; --c-brown: #9F6B53; --c-orange: #D9730D; --c-yellow: #CB912F; --c-green: #448361; --c-blue: #337EA9; --c-purple: #9065B0; --c-pink: #C14C8A; --c-red: #D44C47; --c-teal: #1F8A8A; --c-lime: #7A9A1E; --c-indigo: #5B66C4; --c-wine: #A3304F;
+  --b-gray: #F1F1EF; --b-brown: #F4EEEE; --b-orange: #FBECDD; --b-yellow: #FBF3DB; --b-green: #EDF3EC; --b-blue: #E7F3F8; --b-purple: #F6F3F9; --b-pink: #FAF1F5; --b-red: #FDEBEC; --b-teal: #E3F4F3; --b-lime: #F1F5DC; --b-indigo: #ECEEFA; --b-wine: #F8E8EC; --b-beige: #F5F0E6;
   --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji";
   --serif: Lyon-Text, Georgia, "Times New Roman", serif;
   --mono: iawriter-mono, Nitti, Menlo, Consolas, Courier, monospace;
@@ -22,8 +22,8 @@
   --bg: #191919; --white: #101010; --side: #202020; --fg: rgba(255, 255, 255, .81); --fg2: rgba(255, 255, 255, .55); --fg3: rgba(255, 255, 255, .35);
   --hover: rgba(255, 255, 255, .055); --active: rgba(255, 255, 255, .1); --line: rgba(255, 255, 255, .094); --line2: rgba(255, 255, 255, .16);
   --card: #252525; --soft: #252525; --shadow: rgba(15, 15, 15, .2) 0 0 0 1px, rgba(15, 15, 15, .3) 0 3px 6px, rgba(15, 15, 15, .5) 0 9px 24px;
-  --c-gray: #9B9B9B; --c-brown: #BA856F; --c-orange: #C77D48; --c-yellow: #CA9849; --c-green: #529E72; --c-blue: #5E87C9; --c-purple: #9D68D3; --c-pink: #D15796; --c-red: #DF5452;
-  --b-gray: #2F2F2F; --b-brown: #4A3228; --b-orange: #5C3B23; --b-yellow: #564328; --b-green: #243D30; --b-blue: #143A4E; --b-purple: #3C2D49; --b-pink: #4E2C3C; --b-red: #522E2A; --b-beige: #2E2A22;
+  --c-gray: #9B9B9B; --c-brown: #BA856F; --c-orange: #C77D48; --c-yellow: #CA9849; --c-green: #529E72; --c-blue: #5E87C9; --c-purple: #9D68D3; --c-pink: #D15796; --c-red: #DF5452; --c-teal: #3FA3A3; --c-lime: #8FAE3C; --c-indigo: #7C86DB; --c-wine: #C2506E;
+  --b-gray: #2F2F2F; --b-brown: #4A3228; --b-orange: #5C3B23; --b-yellow: #564328; --b-green: #243D30; --b-blue: #143A4E; --b-purple: #3C2D49; --b-pink: #4E2C3C; --b-red: #522E2A; --b-teal: #173E3E; --b-lime: #38401A; --b-indigo: #2A2F55; --b-wine: #4A2230; --b-beige: #2E2A22;
   color-scheme: dark;
 }
 @media (pointer: coarse) { :root { --tap: 40px; } }
@@ -218,7 +218,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--b
 .cover-g3 { background-image: linear-gradient(120deg, #FFECD2, #FCB69F); }
 .cover-g4 { background-image: linear-gradient(120deg, #A1C4FD, #C2E9FB 55%, #E0C3FC); }
 .cover-gray { background: #9B9A97; } .cover-brown { background: #937264; } .cover-orange { background: #FFA344; } .cover-yellow { background: #FFDC49; } .cover-green { background: #4DAB9A; }
-.cover-blue { background: #529CCA; } .cover-purple { background: #9A6DD7; } .cover-pink { background: #E255A1; } .cover-red { background: #FF7369; }
+.cover-blue { background: #529CCA; } .cover-purple { background: #9A6DD7; } .cover-pink { background: #E255A1; } .cover-red { background: #FF7369; } .cover-teal { background: #4DB6B0; } .cover-lime { background: #A3BE4F; } .cover-indigo { background: #7B86D8; } .cover-wine { background: #C0506D; }
 .page-head { padding-top: 72px; position: relative; }
 .has-cover .page-head { padding-top: 16px; }
 .has-cover.has-icon .page-head { padding-top: 0; }
@@ -299,8 +299,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--b
 .content [style*="background"] { border-radius: 3px; padding: .1em 0; }
 .blk[data-color="gray"] { color: var(--c-gray); } .blk[data-color="brown"] { color: var(--c-brown); } .blk[data-color="orange"] { color: var(--c-orange); } .blk[data-color="yellow"] { color: var(--c-yellow); } .blk[data-color="green"] { color: var(--c-green); }
 .blk[data-color="blue"] { color: var(--c-blue); } .blk[data-color="purple"] { color: var(--c-purple); } .blk[data-color="pink"] { color: var(--c-pink); } .blk[data-color="red"] { color: var(--c-red); }
+.blk[data-color="teal"] { color: var(--c-teal); } .blk[data-color="lime"] { color: var(--c-lime); } .blk[data-color="indigo"] { color: var(--c-indigo); } .blk[data-color="wine"] { color: var(--c-wine); }
 .blk[data-color="gray_bg"] { background: var(--b-gray); } .blk[data-color="brown_bg"] { background: var(--b-brown); } .blk[data-color="orange_bg"] { background: var(--b-orange); } .blk[data-color="yellow_bg"] { background: var(--b-yellow); } .blk[data-color="green_bg"] { background: var(--b-green); }
 .blk[data-color="blue_bg"] { background: var(--b-blue); } .blk[data-color="purple_bg"] { background: var(--b-purple); } .blk[data-color="pink_bg"] { background: var(--b-pink); } .blk[data-color="red_bg"] { background: var(--b-red); }
+.blk[data-color="teal_bg"] { background: var(--b-teal); } .blk[data-color="lime_bg"] { background: var(--b-lime); } .blk[data-color="indigo_bg"] { background: var(--b-indigo); } .blk[data-color="wine_bg"] { background: var(--b-wine); }
 
 /* Drawing */
 /* The sheet has no colour of its own: it shows the background of the page it is on. */
@@ -573,3 +575,11 @@ select.photo-every { width: auto; min-height: 30px; padding-top: 2px; padding-bo
   .modal.finder { align-self: flex-start; margin-top: env(safe-area-inset-top); border-radius: 0 0 14px 14px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+
+/* Tasks: categories and drag to reorder */
+.task-group { padding: 4px 0 8px; border-radius: 8px; }
+.task-group.drop { background: var(--hover); }
+.group-head { display: flex; align-items: center; padding: 8px 4px 4px; font-size: .8125rem; }
+.group-empty { padding: 8px 4px; font-size: .8125rem; }
+.task-drag { flex: none; touch-action: none; cursor: grab; opacity: .5; }
+.task.dragging { opacity: .4; }

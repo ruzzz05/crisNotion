@@ -1,8 +1,8 @@
 export const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 export const DAYS_SHORT = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
-export const COLORS = ['gray', 'brown', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'red'];
-export const COLOR_NAMES = { gray: 'gris', brown: 'marrón', orange: 'naranja', yellow: 'amarillo', green: 'verde', blue: 'azul', purple: 'morado', pink: 'rosa', red: 'rojo' };
+export const COLORS = ['gray', 'brown', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'red', 'teal', 'lime', 'indigo', 'wine'];
+export const COLOR_NAMES = { gray: 'gris', brown: 'marrón', orange: 'naranja', yellow: 'amarillo', green: 'verde', blue: 'azul', purple: 'morado', pink: 'rosa', red: 'rojo', teal: 'turquesa', lime: 'lima', indigo: 'índigo', wine: 'granate' };
 export const col = key => (COLORS.includes(key) ? key : 'blue');
 /** Inline style exposing a colour as --c (text) and --b (background). */
 export const tint = key => `--c:var(--c-${col(key)});--b:var(--b-${col(key)})`;

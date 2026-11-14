@@ -212,3 +212,40 @@ test('photoIndex rotates through the photos once per period', async () => {
   assert.equal(nextSwap(H + 5, 1), 2 * H);
   assert.equal(nextSwap(23 * H, 24, -120), 46 * H);
 });
+
+// ---------- Multi-day events, custom kinds, task ordering ----------
+import { spanPart, mergeKinds, placeAt, groupTasks } from '../public/js/model.js';
+
+test('spanPart: a one-day event shows its title', () => {
+  assert.equal(spanPart({ date: '2026-11-10' }, '2026-11-10'), 'single');
+  assert.equal(spanPart({ date: '2026-11-10', endDate: '2026-11-10' }, '2026-11-10'), 'single');
+});
+test('spanPart: a multi-day event names its first and last day, not the ones between', () => {
+  const e = { date: '2026-11-10', endDate: '2026-11-12' };
+  assert.deepEqual(['2026-11-10', '2026-11-11', '2026-11-12'].map(d => spanPart(e, d)), ['start', 'mid', 'end']);
+});
+
+test('mergeKinds appends custom kinds after the built-in ones', () => {
+  const k = mergeKinds({ a: ['A', 'red'] }, [{ id: 'x1', name: 'Gym', color: 'green' }]);
+  assert.deepEqual(k, { a: ['A', 'red'], x1: ['Gym', 'green'] });
+});
+test('mergeKinds never lets a custom kind replace a built-in one', () => {
+  assert.deepEqual(mergeKinds({ a: ['A', 'red'] }, [{ id: 'a', name: 'Fake', color: 'blue' }]), { a: ['A', 'red'] });
+});
+
+test('placeAt moves an item to an index of the list without it', () => {
+  const l = [{ id: 1 }, { id: 2 }, { id: 3 }];
+  assert.deepEqual(placeAt(l, 1, 2).map(x => x.id), [2, 3, 1]);
+  assert.deepEqual(placeAt(l, 3, 0).map(x => x.id), [3, 1, 2]);
+});
+test('placeAt accepts an item that comes from another list', () => {
+  assert.deepEqual(placeAt([{ id: 1 }], { id: 9 }, 0).map(x => x.id), [9, 1]);
+});
+
+test('groupTasks puts uncategorised tasks first, then each list, ordered by `order`', () => {
+  const lists = [{ id: 'L1', order: 2 }, { id: 'L2', order: 1 }];
+  const tasks = [{ id: 'a', order: 5, listId: 'L1' }, { id: 'b', order: 1 }, { id: 'c', order: 0, listId: 'L2' }, { id: 'd', order: 0, listId: 'gone' }, { id: 'e', order: 0.5 }];
+  const g = groupTasks(tasks, lists);
+  assert.deepEqual(g.map(x => x.list?.id ?? null), [null, 'L2', 'L1']);
+  assert.deepEqual(g[0].tasks.map(t => t.id), ['d', 'e', 'b']); // a deleted list's tasks fall back to no category
+});

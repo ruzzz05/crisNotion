@@ -1,7 +1,8 @@
 import * as S from '../store.js';
 import { h, icon, iconBtn, app, viewHead } from '../ui.js';
 import { DAYS, DAYS_SHORT, cap, daysBetween, dow, fmtLong, tint, ymd } from '../util.js';
-import { KINDS, dayColor, eventForm, taskForm, byDate } from '../parts.js';
+import { KINDS, kinds, kindsManager, dayColor, eventForm, taskForm, byDate } from '../parts.js';
+import { spanPart } from '../model.js';
 
 let month = null; // first day of the month on screen
 
@@ -10,9 +11,12 @@ export function calendar(root) {
   month ??= new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
   const marks = {}, holidays = {};
-  for (const e of S.all('event').sort(byDate)) for (const day of e.kind === 'festivo' ? daysBetween(e.date, e.endDate) : [e.date]) {
+  const all = kinds();
+  for (const e of S.all('event').sort(byDate)) for (const day of daysBetween(e.date, e.endDate)) {
     if (e.kind === 'festivo') holidays[day] ??= dayColor(e);
-    (marks[day] ??= []).push({ label: (e.time ? e.time + ' ' : '') + e.title, color: (KINDS[e.kind] || KINDS.evento)[1], open: () => eventForm(e) });
+    // A multi-day event names itself on its first and last day; the days between only show the bar.
+    const part = spanPart(e, day), named = part !== 'mid';
+    (marks[day] ??= []).push({ label: named ? (e.time && part !== 'end' ? e.time + ' ' : '') + e.title : ' ', title: e.title, color: (all[e.kind] || KINDS.evento)[1], open: () => eventForm(e) });
   }
   for (const t of S.all('task')) if (t.due && !t.done) (marks[t.due] ??= []).push({ label: '☐ ' + t.title, color: 'gray', open: () => taskForm(t) });
 
@@ -33,7 +37,7 @@ export function calendar(root) {
       onkeydown: e => { if (e.key === 'Enter' && e.target === cell) eventForm({ date: key }); },
     },
     h('span', { class: 'cal-num' }, d.getDate() === 1 ? `${d.getDate()} ${d.toLocaleDateString('es-ES', { month: 'short' })}` : d.getDate()),
-    list.slice(0, 3).map(m => h('button', { class: 'cal-ev', type: 'button', style: tint(m.color), title: m.label, onclick: m.open }, m.label)),
+    list.slice(0, 3).map(m => h('button', { class: 'cal-ev', type: 'button', style: tint(m.color), title: m.title || m.label, onclick: m.open }, m.label)),
     list.length > 3 && h('span', { class: 'cal-more' }, `+${list.length - 3} más`));
     cells.push(cell);
   }
@@ -42,7 +46,7 @@ export function calendar(root) {
 
   root.classList.add('db');
   root.append(
-    viewHead(null, 'Calendario', [h('button', { class: 'btn primary', type: 'button', onclick: () => eventForm() }, icon('plus'), 'Nuevo')]),
+    viewHead(null, 'Calendario', [h('button', { class: 'btn', type: 'button', onclick: kindsManager }, 'Tipos'), h('button', { class: 'btn primary', type: 'button', onclick: () => eventForm() }, icon('plus'), 'Nuevo')]),
     h('div', { class: 'cal-bar' },
       h('h2', null, cap(month.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }))),
       h('div', { class: 'cal-nav' },
