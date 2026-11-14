@@ -595,6 +595,76 @@ await section('photo widget', async () => {
   await shot('09b-photo-widget');
 });
 
+await section('home board', async () => {
+  const kinds = () => page.$$eval('.home-grid .widget', els => els.map(e => e.dataset.t).join());
+  const rect = t => page.$eval(`.widget[data-t=${t}]`, e => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom, w: r.width, h: r.height }; });
+  const drag = async (from, to) => { await page.mouse.move(from[0], from[1]); await page.mouse.down(); await page.mouse.move((from[0] + to[0]) / 2, (from[1] + to[1]) / 2, { steps: 6 }); await page.mouse.move(to[0], to[1], { steps: 8 }); await page.mouse.up(); await sleep(200); };
+  const addWidget = async name => { await page.click('.home-add'); await sleep(150); await clickText('.pop .menu-item', name); await sleep(250); };
+  await page.evaluate(() => { document.querySelector('.scroll').scrollTop = 0; });
+  check(await kinds() === 'hello,photos,recent,classes,events,tasks', 'Inicio starts with the same things as before, as widgets: ' + await kinds());
+  check(!(await visible('.w-resize')), 'outside edit mode there are no handles in the way');
+  await page.click('.home-edit'); await sleep(150);
+  check(await page.$eval('.view', e => e.classList.contains('editing')) && await visible('.w-resize'), 'Editar shows the handles');
+  await page.click('.home-add'); await sleep(150);
+  const offered = (await texts('.pop .menu-label')).join('|');
+  check(offered === 'Reloj|Pomodoro|Texto|Imagen', 'new widgets can be added; the ones already there are not offered twice: ' + offered);
+  await clickText('.pop .menu-item', 'Reloj'); await sleep(250);
+  check(/^\d\d:\d\d/.test(await text('.widget[data-t=clock]')), 'a clock shows the time: ' + await text('.widget[data-t=clock] .clock-time'));
+
+  // Resize: the photos become narrower and the clock slots in beside them.
+  await page.evaluate(() => { document.querySelector('.scroll').scrollTop = 0; }); await sleep(150);
+  const p0 = await rect('photos'), grip = await (await page.$('.widget[data-t=photos] .w-resize')).boundingBox();
+  await drag([grip.x + grip.width / 2, grip.y + grip.height / 2], [p0.l + p0.w * 0.66, p0.b - 100]);
+  const p1 = await rect('photos'), c1 = await rect('clock');
+  check(Math.abs(p1.w / p0.w - 8 / 12) < 0.03 && p1.h < p0.h - 60, 'dragging the corner resizes a widget in whole cells: ' + JSON.stringify([Math.round(p0.w), Math.round(p1.w), Math.round(p0.h), Math.round(p1.h)]));
+  check(c1.l >= p1.r && Math.abs(c1.t - p1.t) < 2, 'the others fit themselves into the free space: the clock sits beside the photos: ' + JSON.stringify([c1.l, p1.r, c1.t, p1.t]));
+  check(await page.evaluate(() => document.querySelector('.scroll').scrollWidth <= document.querySelector('.scroll').clientWidth + 1), 'nothing sticks out sideways');
+
+  // Move: drop the clock on the left half of the greeting and it goes first.
+  const hello = await rect('hello');
+  await drag([c1.l + c1.w / 2, c1.t + c1.h / 2], [hello.l + 60, hello.t + 14]);
+  check((await kinds()).startsWith('clock,hello'), 'dragging a widget onto another moves it there: ' + await kinds());
+
+  await addWidget('Texto'); await addWidget('Pomodoro');
+  await (await page.$('input.home-image-input')).uploadFile(`${OUT}/big.png`); await sleep(900);
+  check(await page.evaluate(() => document.querySelector('.widget[data-t=image] img')?.naturalWidth > 0), 'an image can be added as a widget');
+  await page.click('.widget[data-t=tasks] .w-del'); await sleep(150);
+  check(!(await kinds()).includes('tasks'), 'a widget can be removed');
+  await page.click('.home-add'); await sleep(150);
+  check((await texts('.pop .menu-label')).includes('Tareas pendientes'), 'a removed built-in widget can be added back');
+  await clickText('.pop .menu-item', 'Tareas pendientes'); await sleep(250);
+  await page.click('.home-edit'); await sleep(150);
+  check(!(await visible('.w-resize')), 'Listo leaves edit mode');
+
+  await page.$eval('.widget[data-t=text]', e => e.scrollIntoView({ block: 'center' })); await sleep(200);
+  await page.click('.widget[data-t=text] .w-text'); await type('Repasar integrales'); await sleep(900);
+  await page.$eval('.widget[data-t=pomodoro]', e => e.scrollIntoView({ block: 'center' })); await sleep(200);
+  check(await text('.pomo-time') === '25:00' && (await text('.pomo-phase')) === 'Concentración', 'a pomodoro starts at 25 minutes of work');
+  await page.click('.pomo-go'); await sleep(1600);
+  const running = await text('.pomo-time');
+  check(/^24:5\d$/.test(running) && await text('.pomo-go') === 'Pausar', 'it counts down once started: ' + running);
+  await page.click('.pomo-go'); await sleep(150);
+  const paused = await text('.pomo-time');
+  await sleep(1300);
+  check(await text('.pomo-time') === paused && await text('.pomo-go') === 'Iniciar', 'and stops when paused: ' + paused);
+  const done = await page.evaluate(async () => {
+    const B = await import('./js/board.js'), S = await import('./js/store.js'), it = S.get('home').items.find(i => i.t === 'pomodoro');
+    Object.assign(it, B.pomoStart({ ...it, left: 400 }, Date.now())); S.put(S.get('home'));
+    return it.id;
+  });
+  await clickText('.side-item', 'Tareas'); await sleep(150); await clickText('.side-item', 'Inicio'); await sleep(1500);
+  check((await text('.pomo-phase')) === 'Descanso' && await text('.pomo-time') === '05:00' && (await text('.pomo-count')).includes('1 pomodoro') && !!done, 'when the time runs out the break is ready and the session is counted: ' + await text('.pomo-count'));
+  await sleep(3200);
+
+  await page.reload({ waitUntil: 'networkidle0' }); await sleep(300);
+  const after = await kinds();
+  check(after.startsWith('clock,hello,photos') && after.split(',').length === 10, 'the board is kept as it was left: ' + after);
+  check((await text('.widget[data-t=text]')).includes('Repasar integrales') && paused !== '', 'text written on a widget is kept');
+  check(Math.abs((await rect('photos')).w - p1.w) < 2, 'sizes are kept too');
+  check(await count('.photo-widget img.photo-now') === 1 && (await text('.view')).includes('Examen de derivadas'), 'the built-in widgets keep working inside the board');
+  await shot('09c-home-board');
+});
+
 await section('trash', async () => {
   await clickText('.tree-row .tree-title', 'Física'); await sleep(250);
   await page.click('.top-more'); await sleep(150);
@@ -614,7 +684,7 @@ await section('backup', async () => {
     await S.importAll(JSON.parse(json));
     return { docs: data.docs.length, drawings: data.drawings.length, blobs: data.blobs.length };
   });
-  check(rt.docs >= 10 && rt.drawings === 3 && rt.blobs === 6, 'backup exports and re-imports everything: ' + JSON.stringify(rt));
+  check(rt.docs >= 10 && rt.drawings === 3 && rt.blobs === 7, 'backup exports and re-imports everything: ' + JSON.stringify(rt));
 });
 
 await section('export and import', async () => {

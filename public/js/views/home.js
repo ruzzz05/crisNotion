@@ -1,136 +1,154 @@
+// Inicio: a board of widgets on a 12-column grid. In "Editar" mode every widget can be dragged to another
+// place, resized from its corner or removed, and new ones added; the grid packs them as they change.
+// The layout is one stored doc ('home'), so it follows the account to other devices.
 import * as S from '../store.js';
-import { h, icon, app, empty, modal, toast } from '../ui.js';
-import { dow, fmtLong, greeting, mins, tint, ymd } from '../util.js';
-import { eventRow, taskRow, eventForm, taskForm, subjectName, byDue, byDate } from '../parts.js';
-import { nextSwap, photoIndex } from '../model.js';
+import { h, icon, menu, toast } from '../ui.js';
+import { COLS, WIDGET_SIZES, moveItem, newItem, normalizeHome, spanFor } from '../board.js';
+import { WIDGETS } from '../widgets.js';
 import { shrink } from '../image.js';
 
-const EVERY = [[1, 'Cada hora'], [3, 'Cada 3 horas'], [24, 'Una vez al día']];
-
-/**
- * Photo frame: holds any number of photos and shows one, moving on to the next every hour, 3 hours or day.
- * Which photo is due depends only on the clock, so it is the same after closing and reopening the app.
- */
-function photoWidget() {
-  const el = h('section', { class: 'photo-widget', 'aria-label': 'Fotos' });
-  let timer = 0, dead = false;
-  const data = () => S.get('photos') || { id: 'photos', type: 'photos', items: [], every: 1 };
-  const due = d => photoIndex(Date.now(), d.every, d.items.length, new Date().getTimezoneOffset());
-
-  const input = h('input', {
-    class: 'photo-widget-input', type: 'file', accept: 'image/*', multiple: true, hidden: true, onchange: async () => {
-      const files = [...input.files], d = data();
-      input.value = '';
-      for (const f of files) {
-        try { d.items.push(await S.saveBlob(await shrink(f))); } catch (e) { console.error(e); toast('No se ha podido añadir una de las fotos.'); }
-      }
-      S.put(d);
-      draw();
-    },
-  });
-  const addBtn = (cls = 'tbtn') => h('button', { class: cls, type: 'button', onclick: () => input.click() }, icon('plus'), 'Añadir fotos');
-
-  function manage() {
-    modal('Fotos del widget', body => {
-      const list = () => {
-        const d = data(), now = d.items[due(d)];
-        body.replaceChildren(
-          d.items.length ? h('div', { class: 'photo-grid' }, d.items.map(id => {
-            const img = h('img', { alt: 'Foto del widget' });
-            S.blobURL(id).then(u => { if (u) img.src = u; });
-            return h('div', { class: 'photo-thumb' + (id === now ? ' now' : '') }, img,
-              h('button', {
-                class: 'photo-del', type: 'button', 'aria-label': 'Quitar esta foto', title: 'Quitar esta foto', onclick: () => {
-                  const cur = data();
-                  cur.items = cur.items.filter(x => x !== id);
-                  S.delBlob(id);
-                  S.put(cur);
-                  list();
-                  draw();
-                },
-              }, icon('x')));
-          })) : h('p', { class: 'muted' }, 'No quedan fotos.'),
-          h('p', { class: 'muted' }, 'La foto con borde azul es la que se ve ahora.'));
-      };
-      list();
-    });
-  }
-
-  function draw() {
-    clearTimeout(timer);
-    if (dead) return;
-    const d = data(), i = due(d);
-    if (i < 0) {
-      el.replaceChildren(h('div', { class: 'photo-empty' }, h('p', null, 'Sube tus fotos y aquí verás una distinta cada cierto tiempo.'), addBtn('btn')), input);
-      return;
-    }
-    const img = h('img', { class: 'photo-now', alt: 'Foto del momento', 'data-blob': d.items[i] });
-    S.blobURL(d.items[i]).then(u => { if (u) img.src = u; });
-    const every = h('select', {
-      class: 'photo-every', 'aria-label': 'Cambiar de foto', value: String(d.every), onchange: () => {
-        const cur = data();
-        cur.every = Number(every.value);
-        S.put(cur);
-        draw();
-      },
-    }, EVERY.map(([v, label]) => h('option', { value: v }, label)));
-    every.value = String(d.every);
-    el.replaceChildren(
-      h('div', { class: 'photo-frame' }, img),
-      h('div', { class: 'photo-bar' },
-        h('span', { class: 'photo-count' }, d.items.length === 1 ? '1 foto' : `${d.items.length} fotos`),
-        every, addBtn(),
-        h('button', { class: 'tbtn', type: 'button', onclick: manage }, icon('image'), 'Gestionar')),
-      input);
-    // Wake up when the next photo is due (setTimeout cannot wait longer than about 24 days).
-    timer = setTimeout(draw, Math.min(nextSwap(Date.now(), d.every, new Date().getTimezoneOffset()) - Date.now() + 500, 2 ** 31 - 1));
-  }
-
-  // Timers pause while the app is in the background, so check again when it comes back.
-  const onShow = () => { if (document.visibilityState === 'visible') draw(); };
-  document.addEventListener('visibilitychange', onShow);
-  draw();
-  return { el, destroy() { dead = true; clearTimeout(timer); document.removeEventListener('visibilitychange', onShow); } };
-}
-
-const section = (ic, title, action, ...kids) => h('section', { class: 'home-sec' },
-  h('div', { class: 'home-sec-head' }, icon(ic), h('h2', null, title), action), kids);
+let editing = false; // survives re-renders of the view
 
 export function home(root) {
-  const now = new Date(), today = ymd(now), nowM = now.getHours() * 60 + now.getMinutes();
-  const classes = S.all('slot').filter(s => s.day === dow(now)).sort((a, b) => mins(a.start) - mins(b.start));
-  const events = S.all('event').filter(e => e.date >= today).sort(byDate).slice(0, 5);
-  const pending = S.all('task').filter(t => !t.done).sort(byDue).slice(0, 5);
-  const recent = S.pages().sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8);
-  const next = classes.find(c => mins(c.end) > nowM);
-  const link = (label, fn) => h('button', { class: 'tbtn', type: 'button', onclick: fn }, label);
+  const stored = S.get('home');
+  let items = normalizeHome(stored?.items, S.uid);
+  const save = () => { S.put({ ...(S.get('home') || { id: 'home', type: 'home' }), items }); };
+  const live = new Map(); // item id -> {el, destroy}
+  const grid = h('div', { class: 'home-grid', style: `--cols:${COLS}` });
 
-  const photos = photoWidget();
+  function mount(item) {
+    const w = WIDGETS[item.t].make(item, { save });
+    const el = h('div', { class: 'widget', 'data-id': item.id, 'data-t': item.t, style: `--w:${item.w};--h:${item.h}` },
+      h('div', { class: 'w-body' }, w.el),
+      h('div', { class: 'w-veil', title: 'Arrastra para mover', onpointerdown: e => startMove(e, item) }),
+      h('button', { class: 'w-del', type: 'button', 'aria-label': 'Quitar ' + WIDGETS[item.t].name, title: 'Quitar', onclick: () => remove(item) }, icon('x')),
+      h('div', { class: 'w-resize', title: 'Arrastra para cambiar el tamaño', onpointerdown: e => startResize(e, item) }));
+    live.set(item.id, { el, destroy: w.destroy });
+    return el;
+  }
+  /** Put the elements in the order of `items` without touching `still`: moving the element being dragged would end the drag. */
+  function order(still) {
+    let passed = false;
+    for (const it of items) {
+      const el = live.get(it.id).el;
+      if (el === still) passed = true;
+      else if (passed) grid.append(el);
+      else grid.insertBefore(el, still);
+    }
+  }
+
+  function remove(item) {
+    items = items.filter(i => i !== item);
+    live.get(item.id)?.destroy?.();
+    live.get(item.id)?.el.remove();
+    live.delete(item.id);
+    if (item.t === 'image' && item.blob) S.delBlob(item.blob);
+    save();
+  }
+
+  function add(item) {
+    items = [...items, item];
+    const el = mount(item);
+    grid.append(el);
+    save();
+    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  // ---------- Moving: the widget takes the place of the one it is dragged onto ----------
+
+  function startMove(e, item) {
+    if (!editing || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    e.preventDefault();
+    const veil = e.currentTarget, el = live.get(item.id).el;
+    try { veil.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+    let moved = false, last = null;
+    const move = ev => {
+      if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 6) return;
+      moved = true;
+      el.classList.add('moving');
+      const over = document.elementsFromPoint(ev.clientX, ev.clientY).find(x => x.classList?.contains('widget') && x !== el);
+      if (!over) return;
+      const r = over.getBoundingClientRect();
+      // Wide widgets are entered from above or below, the rest from the sides.
+      const after = r.width > r.height * 2 ? ev.clientY > r.top + r.height / 2 : ev.clientX > r.left + r.width / 2;
+      // The grid reflows under the pointer after each swap: the same half of the same widget is not acted on twice in a row.
+      const where = over.dataset.id + (after ? '>' : '<');
+      if (where === last) return;
+      last = where;
+      const rest = items.filter(i => i !== item), at = rest.findIndex(i => i.id === over.dataset.id);
+      const next = at < 0 ? items : moveItem(items, item.id, at + (after ? 1 : 0));
+      if (next === items) return;
+      items = next;
+      order(el);
+    };
+    const up = () => {
+      veil.removeEventListener('pointermove', move);
+      veil.removeEventListener('pointerup', up);
+      veil.removeEventListener('pointercancel', up);
+      el.classList.remove('moving');
+      if (moved) save();
+    };
+    veil.addEventListener('pointermove', move);
+    veil.addEventListener('pointerup', up);
+    veil.addEventListener('pointercancel', up);
+  }
+
+  // ---------- Resizing: the corner snaps to whole cells ----------
+
+  function startResize(e, item) {
+    if (!editing || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const grip = e.currentTarget, el = live.get(item.id).el, size = WIDGET_SIZES[item.t];
+    try { grip.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+    const cs = getComputedStyle(grid), gap = parseFloat(cs.columnGap) || 0, row = parseFloat(cs.gridAutoRows) || 48;
+    const cols = cs.gridTemplateColumns.split(' ').length, col = (grid.clientWidth - gap * (cols - 1)) / cols;
+    const box = el.getBoundingClientRect(), before = `${item.w},${item.h}`;
+    el.classList.add('resizing');
+    const move = ev => {
+      item.w = spanFor(ev.clientX - box.left, col, gap, size.minW, COLS);
+      item.h = spanFor(ev.clientY - box.top, row, gap, size.minH, 24);
+      el.style.setProperty('--w', item.w);
+      el.style.setProperty('--h', item.h);
+    };
+    const up = () => {
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', up);
+      grip.removeEventListener('pointercancel', up);
+      el.classList.remove('resizing');
+      if (`${item.w},${item.h}` !== before) save();
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', up);
+    grip.addEventListener('pointercancel', up);
+  }
+
+  // ---------- Toolbar ----------
+
+  const file = h('input', {
+    class: 'home-image-input', type: 'file', accept: 'image/*', hidden: true, onchange: async () => {
+      const f = file.files[0];
+      file.value = '';
+      if (!f) return;
+      try { add(newItem('image', S.uid(), { blob: await S.saveBlob(await shrink(f)) })); } catch (e) { console.error(e); toast('No se ha podido usar esa imagen.'); }
+    },
+  });
+  const addMenu = anchor => menu(anchor, Object.entries(WIDGETS)
+    .filter(([t]) => !(WIDGET_SIZES[t].single && items.some(i => i.t === t)))
+    .map(([t, w]) => ({ label: w.name, fn: () => (t === 'image' ? file.click() : add(newItem(t, S.uid()))) })));
+  const bar = h('div', { class: 'home-bar' });
+  function drawBar() {
+    root.classList.toggle('editing', editing);
+    bar.replaceChildren(...[
+      editing && h('span', { class: 'muted home-hint' }, 'Arrastra un widget para moverlo y su esquina para cambiar el tamaño.'),
+      editing && h('button', { class: 'btn home-add', type: 'button', onclick: e => addMenu(e.currentTarget) }, icon('plus'), 'Añadir widget'),
+      h('button', { class: 'btn home-edit' + (editing ? ' primary' : ''), type: 'button', onclick: () => { editing = !editing; drawBar(); } }, editing ? 'Listo' : 'Editar'),
+    ].filter(Boolean));
+  }
+
   root.classList.add('home');
-  root.append(
-    h('header', { class: 'home-hero' }, h('h1', null, greeting(now.getHours())), h('p', { class: 'muted' }, fmtLong(now))),
-    photos.el,
-
-    section('doc', 'Visitadas recientemente', null,
-      recent.length ? h('div', { class: 'cards' }, recent.map(p => h('button', { class: 'card', type: 'button', onclick: () => app.go('page/' + p.id) },
-        h('span', { class: 'card-band' }), h('span', { class: 'card-icon' }, p.icon || icon('doc')),
-        h('span', { class: 'card-title' }, p.title || 'Sin título'),
-        h('span', { class: 'muted' }, S.get(p.bookId)?.name))))
-        : empty(S.all('book').length ? 'Crea una página con el + que hay junto a cada libro.' : 'Empieza creando un libro en la barra lateral: agrupa las asignaturas de un curso.')),
-
-    section('grid', 'Clases de hoy', link('Ver horario', () => app.go('timetable')),
-      classes.length ? h('div', { class: 'today' }, classes.map(c => {
-        const s = S.liveSubject(c.subjectId);
-        return h('div', { class: 'today-item' + (mins(c.end) <= nowM ? ' past' : '') + (c === next ? ' next' : ''), style: tint(s?.color || 'gray') },
-          h('span', { class: 'today-time' }, `${c.start} – ${c.end}`),
-          h('span', { class: 'row-t' }, s ? subjectName(s) : (c.title || 'Clase')),
-          c.room && h('span', { class: 'muted' }, c.room));
-      })) : empty(S.all('slot').length ? 'Hoy no tienes clases.' : 'Aún no tienes horario.')),
-
-    section('cal', 'Próximos eventos', link('Nuevo evento', () => eventForm()),
-      events.length ? h('div', { class: 'rows' }, events.map(eventRow)) : empty('No hay exámenes ni entregas a la vista.')),
-
-    section('tasks', 'Tareas pendientes', link('Nueva tarea', () => taskForm()),
-      pending.length ? h('div', { class: 'rows' }, pending.map(taskRow)) : empty('Nada pendiente.')));
-  return photos.destroy;
+  drawBar();
+  for (const it of items) grid.append(mount(it));
+  root.append(bar, grid, file);
+  return () => { for (const w of live.values()) w.destroy?.(); };
 }

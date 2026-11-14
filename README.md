@@ -16,7 +16,7 @@ PWA de apuntes para iPhone y iPad: un Notion reducido a lo que hace falta en cla
 - **Icono y portada** por página, favoritos, migas de pan, búsqueda rápida con Ctrl/Cmd+K y papelera.
 - **Dibujo a mano** con Apple Pencil o ratón (presión, subrayador, goma, deshacer) y grosor del trazo con un deslizable. El dedo nunca dibuja: desplaza la página. Se pueden insertar imágenes en el dibujo, moverlas, cambiarles el tamaño desde cualquier esquina y escribir encima.
 - **Fotos** desde la cámara o la galería, reducidas y guardadas en el dispositivo; su tamaño se ajusta arrastrando el tirador del borde.
-- **Widget de fotos** en Inicio: sube las que quieras y se muestra una distinta cada hora, cada 3 horas o una vez al día.
+- **Inicio es un tablero de widgets:** con «Editar» se mueven arrastrando, se cambian de tamaño desde la esquina (encajan solos en la rejilla), se quitan y se añaden. Hay reloj, pomodoro, texto, imagen, fotos que cambian cada hora, cada 3 horas o una vez al día, páginas recientes, clases de hoy, eventos y tareas.
 - **Horario** semanal, **calendario** mensual de exámenes y entregas, y **tareas**.
 - En pantallas táctiles, barra de herramientas sobre el teclado.
 - **Exportar e importar** libros enteros o páginas sueltas (con sus subpáginas, fotos, PDF y dibujos) desde el menú de cada uno; al importar se crea una copia y no se pisa nada.
@@ -57,6 +57,7 @@ Para instalarla en iPhone o iPad hace falta servirla por HTTPS, abrirla en Safar
 | `public/js/pdf.js`, `public/vendor/pdfjs/` | Bloque PDF; pdf.js de Mozilla (Apache-2.0) incluido para funcionar sin conexión |
 | `public/js/cloud.js`, `synccore.js`, `firestore.js` | Sincronización: unión con la app, reglas (probadas con dos dispositivos simulados) y llamadas a Firestore |
 | `public/js/theme.js`, `transfer.js` | Tema de color; exportar e importar libros y páginas |
+| `public/js/board.js`, `widgets.js` | Tablero de Inicio: tamaños y pomodoro (lógica pura) y el dibujo de cada widget |
 | `public/js/views/` | Una pantalla por archivo |
 | `public/sw.js` | Service worker (red primero, caché de respaldo) |
 | `tests/` | Pruebas unitarias y de extremo a extremo |
