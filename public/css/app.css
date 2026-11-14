@@ -30,6 +30,8 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
+/* No zoom on double tap (it got in the way of writing and tapping fast); scrolling and pinch zoom are kept. */
+html, body, .scroll { touch-action: manipulation; }
 body { font: 16px/1.5 var(--ui); color: var(--fg); background: var(--bg); overflow: hidden; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; }

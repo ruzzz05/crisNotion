@@ -71,6 +71,7 @@ await section('shell', async () => {
   const paper = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   check(paper === 'rgb(255, 255, 255)', 'the default theme is white: ' + paper);
   check(await count('.tabx') === 1 && (await text('.tabx.on')).includes('Inicio'), 'starts with one tab on Inicio');
+  check(await page.evaluate(() => [document.documentElement, document.body, document.querySelector('.scroll')].every(e => getComputedStyle(e).touchAction === 'manipulation')), 'a double tap does not zoom the screen (scrolling and pinching still work)');
   check((await texts('.side-item')).join('|').includes('Horario') && (await texts('.side-item')).join('|').includes('Calendario'), 'sidebar lists Horario and Calendario');
   check(!(await text('.topbar')).includes('null'), 'top bar shows no stray "null" on a built-in view');
   const iconW = await page.$eval('.side-item[data-route=home] .ico', e => e.getBoundingClientRect().width);
