@@ -11,6 +11,7 @@ import { h, icon, menu, pop, toast } from './ui.js';
 import { STROKE, bottomOf, cleanHex, hexToHsl, hitImage, hslToHex, inkSlots, placeImage, pushRecent, resizeFrom, strokePath, strokeSize } from './sheet.js';
 import { shrink } from './image.js';
 import { isDark, onTheme } from './theme.js';
+import { COLORS, COLOR_NAMES } from './util.js';
 
 export const W = 1000;
 const INK = ['ink', 'blue', 'red', 'green', 'orange', 'purple', 'yellow'];
@@ -412,9 +413,11 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
 export function mountDrawing(host, block, changed) {
   block.h ??= 420;
   block.bg ??= 'grid';
+  const paintRule = () => { if (COLORS.includes(block.rule)) stage.style.setProperty('--rule-c', `var(--c-${block.rule})`); else stage.style.removeProperty('--rule-c'); };
   const stage = h('div', { class: 'bg-' + block.bg });
   const bar = h('div', { class: 'draw-bar', role: 'toolbar', 'aria-label': 'Herramientas de dibujo' });
   host.append(bar, stage);
+  paintRule();
   const sheet = mountSheet(stage, { id: block.id, height: () => block.h, setHeight: v => { block.h = v; changed(); }, images: true });
   const unbar = mountToolbar(bar, {
     sheet: () => sheet, images: true,
@@ -428,6 +431,10 @@ export function mountDrawing(host, block, changed) {
           changed(); refreshBars();
         },
       }))), false, 'bg-pick'),
+      btn('Color de las líneas', icon('palette'), e => menu(e.currentTarget, [
+        { label: 'Automático', swatch: 'background:var(--card)', on: !COLORS.includes(block.rule), fn: () => { delete block.rule; paintRule(); changed(); refreshBars(); } },
+        ...COLORS.map(c => ({ label: COLOR_NAMES[c].replace(/^./, x => x.toUpperCase()), swatch: `background:var(--c-${c})`, on: block.rule === c, fn: () => { block.rule = c; paintRule(); changed(); refreshBars(); } })),
+      ]), false, 'rule-pick'),
       btn('Más espacio para dibujar', icon('grow'), () => { block.h += 300; changed(); sheet.fit(true); }),
     ],
   });

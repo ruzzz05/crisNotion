@@ -254,6 +254,14 @@ await section('drawing', async () => {
   check((await paper()).startsWith('bg-dots radial-gradient'), 'dotted paper: ' + await paper());
   await shot('02a-draw-dots');
   await page.click('.blk[data-t=draw] .bg-pick'); await sleep(150); await clickText('.pop .menu-item', 'Cuadrícula'); await sleep(150);
+  const ruleC = () => page.$eval('.blk[data-t=draw] .draw-stage', e => e.style.getPropertyValue('--rule-c'));
+  await page.click('.blk[data-t=draw] .rule-pick'); await sleep(150);
+  const rules = (await texts('.pop .menu-label')).join('|');
+  check(rules.startsWith('Automático|Gris|Marrón') && rules.endsWith('Rojo'), 'the colour of the lines is chosen from a list: ' + rules);
+  await clickText('.pop .menu-item', 'Rojo'); await sleep(150);
+  check(await ruleC() === 'var(--c-red)' && await page.$eval('.blk[data-t=draw] .draw-stage', e => getComputedStyle(e).getPropertyValue('--rc').trim()) !== '', 'the lines take the chosen colour: ' + await ruleC());
+  await page.click('.blk[data-t=draw] .rule-pick'); await sleep(150); await clickText('.pop .menu-item', 'Automático'); await sleep(150);
+  check(await ruleC() === '', 'Automático goes back to following the page colour');
 });
 
 await section('pictures on the drawing sheet', async () => {
