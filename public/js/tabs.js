@@ -30,6 +30,9 @@ export function redirect(state, test, route) {
   return { ...state, tabs: state.tabs.map(t => (test(t.route) ? { ...t, route } : t)) };
 }
 
+/** Keep the remembered scroll positions ("tabId|route" -> px) of tabs that still exist. */
+export const pruneScroll = (memory, state) => new Map([...memory].filter(([key]) => state.tabs.some(t => key.startsWith(t.id + '|'))));
+
 export const current = state => state.tabs.find(t => t.id === state.active) || state.tabs[0];
 
 /** Accept only a well-formed saved state; anything else falls back to a fresh one. */

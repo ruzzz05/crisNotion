@@ -604,6 +604,18 @@ await section('tabs', async () => {
   check((await texts('.tabx')).map(t => t.replace(/\s+/g, ' ')).join('|').includes('Matemáticas II') && (await text('.tabx.on')).includes('Calendario'), 'navigating changes only the active tab: ' + (await texts('.tabx')).join('|'));
   await page.click('.tabx:first-child'); await sleep(250);
   check((await route()).startsWith('page/') && (await page.$eval('.page-title', e => e.textContent)) === 'Matemáticas II', 'switching tab shows its page');
+  // Each tab keeps its own scroll position.
+  await page.addStyleTag({ content: '.view { min-height: 3000px !important; }' });
+  const top = () => page.$eval('.scroll', e => Math.round(e.scrollTop));
+  await page.$eval('.scroll', e => { e.scrollTop = 400; }); await sleep(150);
+  await page.click('.tabx:nth-child(2)'); await sleep(250);
+  check(await top() === 0, 'another tab starts at the top: ' + await top());
+  await page.$eval('.scroll', e => { e.scrollTop = 150; }); await sleep(100);
+  await page.click('.tabx:first-child'); await sleep(300);
+  check(Math.abs(await top() - 400) < 3, 'coming back to a tab restores where you were: ' + await top());
+  await page.click('.tabx:nth-child(2)'); await sleep(300);
+  check(Math.abs(await top() - 150) < 3, 'and the other tab kept its own position: ' + await top());
+  await page.click('.tabx:first-child'); await sleep(250);
   await page.reload({ waitUntil: 'networkidle0' });
   check(await count('.tabx') === 2 && (await text('.tabx.on')).includes('Matemáticas II'), 'tabs survive a reload');
   await page.click('.tabx:nth-child(2) .tabx-close'); await sleep(150);

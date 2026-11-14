@@ -47,7 +47,8 @@ root.append(sidebar, scrim, h('div', { class: 'main' }, tabstrip, topbar, scroll
 let tabs = T.restore(ls.get('tabs', null));
 let expanded = new Set(JSON.parse(ls.get('expanded', '[]')));
 let cleanup = null;
-let shown = null;
+let shown = null; // "tabId|route" of the view on screen
+let scrolls = new Map(); // scroll position of each tab's view, so switching tabs does not lose your place
 
 const route = () => T.current(tabs).route;
 const pageOf = r => (r.startsWith('page/') ? S.livePage(r.slice(5)) : null);
@@ -226,13 +227,16 @@ function render({ focusTitle = false } = {}) {
   const r = route();
   try { cleanup?.(); } catch (e) { console.error(e); }
   cleanup = null;
-  const top = scroll.scrollTop;
+  if (shown) scrolls.set(shown, scroll.scrollTop);
+  scrolls = T.pruneScroll(scrolls, tabs);
   view.replaceChildren();
   view.className = 'view';
   chrome();
   cleanup = (VIEWS[r] ? VIEWS[r].render(view) : pageView(view, r.slice(5), { focusTitle })) || null;
-  scroll.scrollTop = shown === tabs.active + r ? top : 0;
-  shown = tabs.active + r;
+  shown = tabs.active + '|' + r;
+  const want = scrolls.get(shown) ?? 0, key = shown;
+  scroll.scrollTop = want;
+  requestAnimationFrame(() => { if (shown === key) scroll.scrollTop = want; }); // content that settles after the first paint
   if (location.hash !== '#/' + r) history.replaceState(null, '', '#/' + r);
 }
 

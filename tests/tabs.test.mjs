@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initial, open, navigate, close, activate, redirect } from '../public/js/tabs.js';
+import { initial, open, navigate, close, activate, redirect, pruneScroll } from '../public/js/tabs.js';
 
 test('starts with one tab on home', () => {
   const s = initial();
@@ -71,4 +71,10 @@ test('restore accepts a saved state and falls back to a fresh one on garbage', (
   assert.deepEqual(restore('{"tabs":[],"active":"x"}'), initial());
   assert.deepEqual(restore('not json'), initial());
   assert.deepEqual(restore(null), initial());
+});
+
+test('pruneScroll forgets the scroll of tabs that no longer exist', () => {
+  const s = open(initial(), 'page/a'); // tabs t1 and t2
+  const memory = new Map([['t1|home', 120], ['t2|page/a', 40], ['t9|page/x', 7]]);
+  assert.deepEqual([...pruneScroll(memory, s)], [['t1|home', 120], ['t2|page/a', 40]]);
 });
