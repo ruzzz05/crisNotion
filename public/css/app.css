@@ -184,6 +184,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--b
 /* Touch screens: formatting tools in a bar at the top of the page, only while text is selected (see editor.js). */
 .fbar { position: fixed; left: 50%; transform: translateX(-50%); z-index: 25; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; padding: 4px 6px; width: fit-content; max-width: 100%; background: var(--card); border-radius: 8px; box-shadow: var(--shadow); }
 .fbar[hidden] { display: none; }
+.fbar button:disabled { opacity: .35; }
 .fbar button { min-width: 40px; height: 40px; padding: 0 6px; display: grid; place-items: center; border-radius: 6px; font-size: 1rem; }
 .fbar button:active { background: var(--active); }
 .fbar .ico { width: 20px; height: 20px; }

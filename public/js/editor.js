@@ -601,27 +601,20 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       menu(e.currentTarget, [...HIGHLIGHTS.map(([label, c]) => ({ label, swatch: `background:${c}`, fn: run(c) })), { label: 'Quitar resaltado', icon: 'x', fn: run('transparent') }]);
     }),
   ];
-  const bubble = h('div', { class: 'bubble', role: 'toolbar', 'aria-label': 'Formato', hidden: true }, ...formatButtons());
-  // On a touch screen the same tools sit in a bar at the top of the page, shown only while text is selected.
-  const fbar = h('div', { class: 'fbar', role: 'toolbar', 'aria-label': 'Formato', hidden: true }, ...formatButtons());
+  // The formatting bar sits just under the breadcrumb bar and is always there; its tools work only while text is selected.
+  const fbar = h('div', { class: 'fbar', role: 'toolbar', 'aria-label': 'Formato' }, ...formatButtons());
   root.prepend(fbar);
-  document.body.append(bubble);
+  const placeBar = () => { fbar.style.top = formatBarTop(document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0) + 'px'; };
+  placeBar();
+  addEventListener('resize', placeBar);
 
   let selTimer = 0;
+  // The tools are always shown; they only work while text is selected.
   const onSelection = () => {
     clearTimeout(selTimer);
     selTimer = setTimeout(() => {
-      const c = selectedContent();
-      if (!c) { bubble.hidden = true; fbar.hidden = true; return; }
-      if (COARSE.matches) {
-        bubble.hidden = true;
-        fbar.style.top = formatBarTop(document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0) + 'px';
-        fbar.hidden = false;
-        return;
-      }
-      fbar.hidden = true;
-      bubble.hidden = false;
-      placeNear(bubble, getSelection().getRangeAt(0).getBoundingClientRect(), { above: !COARSE.matches, gap: 8 });
+      const on = !!selectedContent();
+      for (const b of fbar.querySelectorAll('button')) b.disabled = !on;
     }, 80);
   };
   document.addEventListener('selectionchange', onSelection);
@@ -903,8 +896,8 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       flush();
       closeSlash();
       clearTimeout(selTimer);
-      bubble.remove();
       fbar.remove();
+      removeEventListener('resize', placeBar);
       rec?.abort();
       kbar.remove();
       document.removeEventListener('selectionchange', onSelection);
