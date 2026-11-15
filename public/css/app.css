@@ -181,6 +181,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--b
 .slash-desc { font-size: .75rem; color: var(--fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .slash-none { padding: 8px; color: var(--fg2); font-size: .875rem; }
 
+/* Touch screens: formatting tools in a bar at the top of the page, only while text is selected (see editor.js). */
+.fbar { position: sticky; top: 0; z-index: 25; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; margin: 0 auto 6px; padding: 4px 6px; width: fit-content; max-width: 100%; background: var(--card); border-radius: 8px; box-shadow: var(--shadow); }
+.fbar[hidden] { display: none; }
+.fbar button { min-width: 40px; height: 40px; padding: 0 6px; display: grid; place-items: center; border-radius: 6px; font-size: 1rem; }
+.fbar button:active { background: var(--active); }
+.fbar .ico { width: 20px; height: 20px; }
 .bubble { display: flex; align-items: stretch; padding: 3px; gap: 1px; font-size: .9375rem; }
 .bubble button { min-width: 30px; height: 30px; padding: 0 6px; display: grid; place-items: center; border-radius: 4px; }
 .bubble button:hover { background: var(--hover); }
@@ -388,7 +394,8 @@ input.color-hex { min-height: 32px; font-family: var(--mono); font-size: .875rem
   .kbar::-webkit-scrollbar { display: none; }
   .kbar button { flex: none; min-width: 44px; height: 40px; display: grid; place-items: center; border-radius: 6px; color: var(--fg); font-size: 1.0625rem; }
   .kbar button:active { background: var(--active); }
-  .kbar .ico { width: 21px; height: 21px; }
+  .kbar button.on { background: var(--active); color: var(--blue); }
+.kbar .ico { width: 21px; height: 21px; }
   .page { padding-bottom: 96px; }
 }
 

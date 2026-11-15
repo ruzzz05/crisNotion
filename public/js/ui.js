@@ -36,6 +36,7 @@ const PATHS = {
   more: '<circle cx="5" cy="12" r="1.500" fill="currentColor"/><circle cx="12" cy="12" r="1.500" fill="currentColor"/><circle cx="19" cy="12" r="1.500" fill="currentColor"/>',
   handle: '<circle cx="9" cy="6" r="1.400" fill="currentColor"/><circle cx="15" cy="6" r="1.400" fill="currentColor"/><circle cx="9" cy="12" r="1.400" fill="currentColor"/><circle cx="15" cy="12" r="1.400" fill="currentColor"/><circle cx="9" cy="18" r="1.400" fill="currentColor"/><circle cx="15" cy="18" r="1.400" fill="currentColor"/>',
   image: '<rect x="3.500" y="5" width="17" height="14" rx="2"/><circle cx="8.500" cy="10" r="1.500"/><path d="M20.500 16l-5-5-8 8"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.500 11a6.500 6.500 0 0 0 13 0M12 17.500V21"/>',
   pen: '<path d="M4 20l1-4L16.500 4.500a2.100 2.100 0 0 1 3 3L8 19z"/>',
   marker: '<path d="M14 4l6 6-8.500 8.500H7l-1.500-1.500v-4.500z"/><path d="M5 20h6"/>',
   eraser: '<path d="M8.500 20l-4.500-4.500a1.500 1.500 0 0 1 0-2L13.500 4l6.500 6.500L10.500 20z"/><path d="M8.500 20H20"/>',

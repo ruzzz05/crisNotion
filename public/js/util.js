@@ -9,8 +9,14 @@ export const COLOR_NAMES = { gray: 'gris', brown: 'marrón', orange: 'naranja', 
  */
 export const ALLOW_TOUCH_SELECTION = false;
 export const blocksTouchSelection = (isCoarse, allow = ALLOW_TOUCH_SELECTION) => isCoarse && !allow;
+/** Text to insert for a dictated phrase at a caret after `before`: trimmed, with a space before it when needed and after it. */
+export function spokenText(chunk, before = '') {
+  const t = chunk.trim();
+  if (!t) return '';
+  return (before && !/\s$/.test(before) ? ' ' : '') + t + ' ';
+}
 /** App version shown in the sidebar; kept equal to package.json (see tests). */
-export const VERSION = '0.9.3';
+export const VERSION = '0.9.4';
 /** Colours a text may take: the palette plus black (data-c on a span, see sanitize). */
 export const TONES = [...COLORS, 'black'];
 /** Top edge of the touch toolbar: its bottom sits on the visible bottom (above the on-screen keyboard). */

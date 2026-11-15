@@ -3,7 +3,7 @@
 // Every structural change edits `page.blocks` and then calls sync(), which reconciles the DOM by block id.
 import * as S from './store.js';
 import { h, icon, app, menu, pop, placeNear, toast } from './ui.js';
-import { COLORS, COLOR_NAMES, barTop, blocksTouchSelection, esc, pasteHtml, sanitize, shouldCapitalize } from './util.js';
+import { COLORS, COLOR_NAMES, barTop, blocksTouchSelection, esc, pasteHtml, sanitize, shouldCapitalize, spokenText } from './util.js';
 import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, pdfAssets, rangeEnd, rowOf, rowSizes, splitBlock, backspaceAction } from './model.js';
 import { createHistory } from './history.js';
 import { mountDrawing } from './drawing.js';
@@ -40,6 +40,7 @@ const HIGHLIGHTS = [['Amarillo', 'rgba(255, 212, 0, 0.4)'], ['Verde', 'rgba(60, 
   ['Naranja', 'rgba(255, 150, 40, 0.38)'], ['Lima', 'rgba(170, 210, 50, 0.4)'], ['Turquesa', 'rgba(30, 190, 185, 0.33)'], ['Celeste', 'rgba(90, 190, 255, 0.35)'],
   ['Índigo', 'rgba(100, 110, 220, 0.3)'], ['Morado', 'rgba(160, 100, 220, 0.3)'], ['Granate', 'rgba(190, 50, 90, 0.3)'], ['Marrón', 'rgba(160, 110, 80, 0.35)'], ['Gris', 'rgba(140, 140, 140, 0.35)']];
 const COARSE = matchMedia('(pointer: coarse)');
+const SpeechRec = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition; // absent where the browser has no dictation
 
 const mk = (t, extra = {}) => ({ id: S.uid(), t, html: '', indent: 0, ...extra });
 const ind = b => b.indent || 0;
@@ -574,7 +575,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
 
   const fmt = cmd => () => document.execCommand(cmd);
   const bb = (label, content, fn) => h('button', { type: 'button', 'aria-label': label, title: label, onmousedown: keep, onclick: fn }, content);
-  const bubble = h('div', { class: 'bubble', role: 'toolbar', 'aria-label': 'Formato', hidden: true },
+  const formatButtons = () => [
     bb('Negrita', h('b', null, 'B'), fmt('bold')),
     bb('Cursiva', h('i', null, 'i'), fmt('italic')),
     bb('Subrayado', h('u', null, 'U'), fmt('underline')),
@@ -598,7 +599,12 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       const s = getSelection(), saved = s.rangeCount ? s.getRangeAt(0).cloneRange() : null;
       const run = c => () => { if (saved) { s.removeAllRanges(); s.addRange(saved); } highlight(c); };
       menu(e.currentTarget, [...HIGHLIGHTS.map(([label, c]) => ({ label, swatch: `background:${c}`, fn: run(c) })), { label: 'Quitar resaltado', icon: 'x', fn: run('transparent') }]);
-    }));
+    }),
+  ];
+  const bubble = h('div', { class: 'bubble', role: 'toolbar', 'aria-label': 'Formato', hidden: true }, ...formatButtons());
+  // On a touch screen the same tools sit in a bar at the top of the page, shown only while text is selected.
+  const fbar = h('div', { class: 'fbar', role: 'toolbar', 'aria-label': 'Formato', hidden: true }, ...formatButtons());
+  root.prepend(fbar);
   document.body.append(bubble);
 
   let selTimer = 0;
@@ -606,7 +612,9 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     clearTimeout(selTimer);
     selTimer = setTimeout(() => {
       const c = selectedContent();
-      if (!c) { bubble.hidden = true; return; }
+      if (!c) { bubble.hidden = true; fbar.hidden = true; return; }
+      if (COARSE.matches) { bubble.hidden = true; fbar.hidden = false; return; }
+      fbar.hidden = true;
       bubble.hidden = false;
       placeNear(bubble, getSelection().getRangeAt(0).getBoundingClientRect(), { above: !COARSE.matches, gap: 8 });
     }, 80);
@@ -617,6 +625,31 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
 
   const kb = (label, content, fn) => h('button', { type: 'button', 'aria-label': label, title: label, onmousedown: keep, onclick: fn }, content);
   const onCurrent = fn => () => { const b = current && B(current); if (b && TEXT.has(b.t)) fn(b); };
+  // Dictation: speech becomes text in the block with the caret. Tap once to start, again to stop.
+  let rec = null;
+  function toggleDictation(btn) {
+    if (rec) return rec.stop();
+    const b = current && B(current);
+    if (!b || !TEXT.has(b.t)) return toast('Pon el cursor en un bloque de texto y pulsa Dictar.');
+    rec = new SpeechRec();
+    rec.lang = 'es-ES';
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.onresult = e => {
+      const c = C(b.id);
+      if (!c) return;
+      const said = [...e.results].slice(e.resultIndex).map(r => r[0].transcript).join(' ');
+      place(c, true);
+      document.execCommand('insertText', false, spokenText(said, textBeforeCaret(c)));
+    };
+    rec.onerror = e => { if (e.error !== 'no-speech' && e.error !== 'aborted') toast('No se ha podido dictar (' + e.error + ').'); };
+    rec.onend = () => { rec = null; btn.classList.remove('on'); };
+    rec.start();
+    btn.classList.add('on');
+  }
+  const dictBtn = kb('Dictar', icon('mic'), () => toggleDictation(dictBtn));
+  dictBtn.hidden = !SpeechRec;
+
   const kbar = h('div', { class: 'kbar', role: 'toolbar', 'aria-label': 'Herramientas de edición' },
     kb('Deshacer', icon('undo'), () => step(-1)),
     kb('Rehacer', icon('redo'), () => step(1)),
@@ -631,6 +664,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     kb('Negrita', h('b', null, 'B'), fmt('bold')),
     kb('Cursiva', h('i', null, 'i'), fmt('italic')),
     kb('Opciones del bloque', icon('more'), e => { if (current && B(current)) blockMenu(current, e.currentTarget); }),
+    dictBtn,
     kb('Ocultar el teclado', icon('keyboard'), () => document.activeElement?.blur()));
   document.body.append(kbar);
   // Pinned to the bottom of the visible area, which on iPad shrinks when the on-screen keyboard opens: the bar sits right above it.
@@ -865,6 +899,8 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       closeSlash();
       clearTimeout(selTimer);
       bubble.remove();
+      fbar.remove();
+      rec?.abort();
       kbar.remove();
       document.removeEventListener('selectionchange', onSelection);
       document.removeEventListener('visibilitychange', onHide);

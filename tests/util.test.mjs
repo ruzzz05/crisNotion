@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ymd, parseYmd, dow, mins, hhmm, relDay, esc, col, tint, COLORS, greeting, pasteHtml, shouldCapitalize, TONES, barTop, VERSION, blocksTouchSelection } from '../public/js/util.js';
+import { ymd, parseYmd, dow, mins, hhmm, relDay, esc, col, tint, COLORS, greeting, pasteHtml, shouldCapitalize, TONES, barTop, VERSION, blocksTouchSelection, spokenText } from '../public/js/util.js';
 
 test('ymd formats a local date as yyyy-mm-dd with zero padding', () => {
   assert.equal(ymd(new Date(2026, 0, 5)), '2026-01-05');
@@ -129,7 +129,7 @@ test('barTop never goes above the top of the screen', () => {
 test('VERSION is the app version and matches package.json', async () => {
   const { readFile } = await import('node:fs/promises');
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
-  assert.equal(VERSION, '0.9.3');
+  assert.equal(VERSION, '0.9.4');
   assert.equal(pkg.version, VERSION);
 });
 
@@ -137,4 +137,11 @@ test('blocksTouchSelection: long-press selection is blocked on touch screens onl
   assert.equal(blocksTouchSelection(true), true);
   assert.equal(blocksTouchSelection(false), false);
   assert.equal(blocksTouchSelection(true, true), false);
+});
+
+test('spokenText: dictated words are trimmed and separated from the text before the caret', () => {
+  assert.equal(spokenText(' hola ', ''), 'hola ');
+  assert.equal(spokenText('que tal', 'hola'), ' que tal ');
+  assert.equal(spokenText('que tal', 'hola '), 'que tal ');
+  assert.equal(spokenText('   ', 'hola'), '');
 });
