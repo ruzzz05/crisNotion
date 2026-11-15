@@ -601,20 +601,20 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       menu(e.currentTarget, [...HIGHLIGHTS.map(([label, c]) => ({ label, swatch: `background:${c}`, fn: run(c) })), { label: 'Quitar resaltado', icon: 'x', fn: run('transparent') }]);
     }),
   ];
-  // The formatting bar sits just under the breadcrumb bar and is always there; its tools work only while text is selected.
-  const fbar = h('div', { class: 'fbar', role: 'toolbar', 'aria-label': 'Formato' }, ...formatButtons());
+  // The formatting bar sits just under the breadcrumb bar and shows only while text is selected.
+  const fbar = h('div', { class: 'fbar', role: 'toolbar', 'aria-label': 'Formato', hidden: true }, ...formatButtons());
   root.prepend(fbar);
   const placeBar = () => { fbar.style.top = formatBarTop(document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0) + 'px'; };
   placeBar();
   addEventListener('resize', placeBar);
 
   let selTimer = 0;
-  // The tools are always shown; they only work while text is selected.
+  // The formatting bar appears only while text is selected.
   const onSelection = () => {
     clearTimeout(selTimer);
     selTimer = setTimeout(() => {
-      const on = !!selectedContent();
-      for (const b of fbar.querySelectorAll('button')) b.disabled = !on;
+      fbar.hidden = !selectedContent();
+      if (!fbar.hidden) placeBar();
     }, 80);
   };
   document.addEventListener('selectionchange', onSelection);

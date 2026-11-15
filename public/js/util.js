@@ -19,7 +19,7 @@ export function spokenText(chunk, before = '') {
 export const formatBarTop = topbarBottom => Math.round(topbarBottom + 6);
 
 /** App version shown in the sidebar; kept equal to package.json (see tests). */
-export const VERSION = '0.9.6';
+export const VERSION = '0.9.7';
 /** Colours a text may take: the palette plus black (data-c on a span, see sanitize). */
 export const TONES = [...COLORS, 'black'];
 /** Top edge of the touch toolbar: its bottom sits on the visible bottom (above the on-screen keyboard). */
