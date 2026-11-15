@@ -22,7 +22,7 @@ export const formatBarTop = topbarBottom => Math.round(topbarBottom + 6);
 export const printTitle = t => (t || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Sin título';
 
 /** App version shown in the sidebar; kept equal to package.json (see tests). */
-export const VERSION = '0.9.11';
+export const VERSION = '0.9.12';
 /** Colours a text may take: the palette plus black (data-c on a span, see sanitize). */
 export const TONES = [...COLORS, 'black'];
 /** Top edge of the touch toolbar: its bottom sits on the visible bottom (above the on-screen keyboard). */
@@ -124,4 +124,10 @@ export function sanitize(html) {
     if (looks.length && !el.attributes.length) el.replaceWith(...el.childNodes);
   }
   return tpl.innerHTML;
+}
+
+/** Scale to draw a PDF page at: twice the screen's pixel density (a scan keeps its detail when zoomed), within `maxPixels` per canvas. */
+export function pdfScale({ pageW, pageH, cssW, dpr, maxPixels }) {
+  const k = 2 * Math.min(3, dpr || 1) * (cssW || 700) / pageW;
+  return Math.min(k, Math.sqrt(maxPixels / (pageW * pageH)));
 }

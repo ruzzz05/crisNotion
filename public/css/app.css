@@ -368,7 +368,7 @@ input.color-hex { min-height: 32px; font-family: var(--mono); font-size: .875rem
 .pdf-pages { --l: 30px; --r: 30px; display: flex; flex-direction: column; gap: 10px; padding: 10px 4px; background: var(--soft); border-radius: 0 0 6px 6px; }
 .pdf-pages.has-l { --l: minmax(0, .42fr); } .pdf-pages.has-r { --r: minmax(0, .42fr); }
 .pdf-row { display: grid; grid-template-columns: var(--l) minmax(0, 1fr) var(--r); gap: 6px; align-items: start; }
-.pdf-page { background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
+.pdf-page { width: 100%; min-width: 0; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
 /* A PDF with notes in its margins spreads into the page padding, so the sheets stay large. */
 .blk[data-t="pdf"]:not(.in-row):has(.pdf-pages.has-l, .pdf-pages.has-r) { flex-basis: calc(100% + 2 * (var(--pad) - 14px)); margin-inline: calc(14px - var(--pad)); }
 .pdf-side { display: flex; flex-direction: column; gap: 6px; min-width: 0; }

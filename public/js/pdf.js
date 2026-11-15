@@ -4,12 +4,12 @@
 // Each sheet also has a margin on either side that holds notes: text, pictures and drawings.
 import * as S from './store.js';
 import { h, icon, menu, toast } from './ui.js';
-import { sanitize } from './util.js';
+import { sanitize, pdfScale } from './util.js';
 import { sideAdd, sideList, sideRemove, sidesUsed, stepPage, parsePage } from './model.js';
 import { mountSheet, mountToolbar, W } from './drawing.js';
 import { imageBox, shrink } from './image.js';
 
-const MAX_PIXELS = 8e6; // keeps page canvases inside iOS memory limits
+const MAX_PIXELS = 12e6; // keeps page canvases inside iOS memory limits (its canvas cap is ~16.7M)
 const SIDE_UNITS = 400; // a margin drawing is narrow, so it uses fewer units than a full sheet
 let lib;
 const load = () => lib ??= import('../vendor/pdfjs/pdf.min.mjs').then(m => {
@@ -22,7 +22,7 @@ export const pageInkId = (blockId, n) => `${blockId}:${n}`;
 
 export function mountPdf(host, block, changed) {
   let dead = false, active = null, task = null, sideTarget = null, cur = 1, total = 0;
-  const sheets = [], rows = [], rendered = new Set();
+  const sheets = [], rows = [];
   const noteSheets = new Map(); // margin drawing id -> sheet
   const bar = h('div', { class: 'draw-bar pdf-bar', role: 'toolbar', 'aria-label': 'Herramientas para anotar el PDF' });
   const pagesEl = h('div', { class: 'pdf-pages' });
@@ -127,7 +127,8 @@ export function mountPdf(host, block, changed) {
       row.classList.remove('from-next', 'from-prev');
       if (i + 1 === n && dir) row.classList.add(dir > 0 ? 'from-next' : 'from-prev');
     });
-    if (!rendered.has(n) && rows[n - 1]) { rendered.add(n); rows[n - 1].querySelector('.pdf-page').renderPage(); }
+    const st = rows[n - 1]?.querySelector('.pdf-page');
+    if (st && Math.abs(st.clientWidth - (st.renderedW || 0)) > 8) st.renderPage(); // first time, or the sheet changed width since
     for (const el of host.querySelectorAll('.pdf-pos')) {
       el.querySelector('.pdf-goto').value = total ? n : '';
       el.querySelector('.pdf-of').textContent = total ? `/ ${total}` : '';
@@ -166,16 +167,21 @@ export function mountPdf(host, block, changed) {
         rows.push(row);
         pagesEl.append(row);
         sheets.push(mountSheet(stage, { id: pageInkId(block.id, n), height: () => W * vp.height / vp.width, images: true, light: true, onActive: setActive }));
+        stage.style.aspectRatio = `${vp.width} / ${vp.height}`; // the sheet has its height before it is drawn, so showing it never shortens the page
+        let job = null;
         stage.renderPage = async () => {
           try {
-            let k = Math.min(3, devicePixelRatio || 1) * (stage.clientWidth || 700) / vp.width;
-            k = Math.min(k, Math.sqrt(MAX_PIXELS / (vp.width * vp.height)));
-            const v = pg.getViewport({ scale: k });
+            const w = stage.clientWidth;
+            stage.renderedW = w;
+            const v = pg.getViewport({ scale: pdfScale({ pageW: vp.width, pageH: vp.height, cssW: w, dpr: devicePixelRatio, maxPixels: MAX_PIXELS }) });
             canvas.width = Math.round(v.width);
             canvas.height = Math.round(v.height);
-            await pg.render({ canvas, viewport: v }).promise;
-          } catch (e) { if (!dead) console.error(e); }
+            job?.cancel(); // a newer render of this canvas replaces one still running
+            job = pg.render({ canvas, viewport: v });
+            await job.promise;
+          } catch (e) { if (!dead && e?.name !== 'RenderingCancelledException') console.error(e); }
         };
+        new ResizeObserver(() => { if (!row.hidden && Math.abs(stage.clientWidth - (stage.renderedW || 0)) > 8) stage.renderPage(); }).observe(stage);
         if (n === 1) show(1);
       }
       show(cur);

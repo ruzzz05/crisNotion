@@ -340,6 +340,14 @@ await section('pdf', async () => {
   await page.$eval('.pdf-page', e => e.scrollIntoView({ block: 'start' })); await sleep(200);
   const painted = () => page.$eval('.pdf-canvas', c => { if (!c.width) return false; const x = c.getContext('2d'), k = c.width / 595, d = x.getImageData(Math.round(200 * k), Math.round((842 - 660) * k), 1, 1).data; return d[2] > 150 && d[0] < 120; });
   check(await waitFor(painted), 'the PDF page itself is rendered');
+  // A page never shown before already has its final height, so the first turn does not shorten the document and push the view up.
+  check(await page.$eval('.pdf-row:nth-child(2) .pdf-page', e => e.style.aspectRatio.replace(/\s/g, '') === '595/842'), 'a hidden sheet already knows its shape');
+  const f0 = await page.evaluate(() => { const sc = document.querySelector('.scroll'), p = document.querySelector('.pdf-foot'); sc.scrollTop = sc.scrollTop + p.getBoundingClientRect().top - innerHeight + 80; return sc.scrollTop; });
+  await sleep(150);
+  await page.click('.blk[data-t=pdf] .pdf-foot .pdf-nav[aria-label="Página siguiente"]');
+  const f1 = await page.evaluate(() => new Promise(r => requestAnimationFrame(() => r(document.querySelector('.scroll').scrollTop))));
+  check(Math.abs(f1 - f0) < 3, 'the first turn to a page keeps the view even before it is drawn: ' + f0 + ' -> ' + f1);
+  await goPage(1); await page.$eval('.pdf-page', e => e.scrollIntoView({ block: 'start' })); await sleep(200);
   await page.click('.blk[data-t=pdf] .draw-bar [aria-label="Subrayador"]');
   const box = await (await page.$('.pdf-page .draw-live')).boundingBox();
   await page.mouse.move(box.x + 60, box.y + 260); await page.mouse.down();
