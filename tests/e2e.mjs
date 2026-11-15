@@ -475,6 +475,12 @@ await section('long text, alignment and colour', async () => {
     return sanitize('<div style="text-align:right;position:fixed"><span data-c="red" style="x:y">a</span><span data-c="evil">b</span></div>');
   });
   check(kept === '<div style="text-align: right;"><span data-c="red">a</span><span>b</span></div>', 'saved text keeps alignment and palette colours only: ' + kept);
+  // After highlight/align the browser writes bold/italic as styled spans: sanitize must keep them as real tags.
+  const styled = await page.evaluate(async () => {
+    const { sanitize } = await import('/js/util.js');
+    return sanitize('<span style="font-weight: bold;">a</span><span style="font-style: italic;">b</span><span style="font-weight: bold; font-style: italic; text-decoration: underline;">c</span>');
+  });
+  check(styled === '<b>a</b><i>b</i><u><i><b>c</b></i></u>', 'bold/italic written as styles survive as tags: ' + styled);
 });
 
 await section('enter stays inside a text block', async () => {

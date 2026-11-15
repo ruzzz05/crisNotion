@@ -22,7 +22,7 @@ export const formatBarTop = topbarBottom => Math.round(topbarBottom + 6);
 export const printTitle = t => (t || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Sin título';
 
 /** App version shown in the sidebar; kept equal to package.json (see tests). */
-export const VERSION = '0.9.9';
+export const VERSION = '0.9.10';
 /** Colours a text may take: the palette plus black (data-c on a span, see sanitize). */
 export const TONES = [...COLORS, 'black'];
 /** Top edge of the touch toolbar: its bottom sits on the visible bottom (above the on-screen keyboard). */
@@ -111,11 +111,17 @@ export function sanitize(html) {
     const align = el.tagName === 'DIV' && ALIGNS.has(el.style?.textAlign) ? el.style.textAlign : null;
     const tone = el.tagName === 'SPAN' && TONES.includes(el.dataset?.c) ? el.dataset.c : null;
     const href = el.tagName === 'A' ? el.getAttribute('href') : null;
+    // execCommand writes bold/italic/underline as styled spans once styleWithCSS is on: keep them as real tags.
+    const looks = el.tagName === 'SPAN' ? ['b', 'i', 'u', 's'].filter(k => k === 'b' ? /^(bold|[6-9]00)$/.test(el.style.fontWeight)
+      : k === 'i' ? el.style.fontStyle === 'italic'
+        : (el.style.textDecorationLine || el.style.textDecoration).includes(k === 'u' ? 'underline' : 'line-through')) : [];
     for (const a of [...el.attributes]) el.removeAttribute(a.name);
     if (bg && bg !== 'transparent') el.style.backgroundColor = bg;
     if (align) el.style.textAlign = align;
     if (tone) el.dataset.c = tone;
     if (href && /^(https?:|mailto:)/i.test(href)) { el.setAttribute('href', href); el.setAttribute('rel', 'noopener noreferrer'); }
+    for (const k of looks) { const w = document.createElement(k); w.append(...el.childNodes); el.append(w); }
+    if (looks.length && !el.attributes.length) el.replaceWith(...el.childNodes);
   }
   return tpl.innerHTML;
 }

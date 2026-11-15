@@ -504,6 +504,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
   function highlight(color) {
     document.execCommand('styleWithCSS', false, true);
     if (!document.execCommand('hiliteColor', false, color)) document.execCommand('backColor', false, color);
+    document.execCommand('styleWithCSS', false, false); // stays on otherwise: bold/italic would become styled spans
   }
 
   /** Colours the selected text with a palette colour (data-c, so it follows the theme); '' goes back to the default. */
@@ -520,6 +521,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
   function align(cmd) {
     document.execCommand('styleWithCSS', false, true);
     document.execCommand(cmd);
+    document.execCommand('styleWithCSS', false, false);
   }
 
   function linkPrompt(anchor) {
@@ -573,7 +575,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     place(C(midId), true);
   }
 
-  const fmt = cmd => () => document.execCommand(cmd);
+  const fmt = cmd => () => { document.execCommand('styleWithCSS', false, false); document.execCommand(cmd); };
   const bb = (label, content, fn) => h('button', { type: 'button', 'aria-label': label, title: label, onmousedown: keep, onclick: fn }, content);
   const formatButtons = () => [
     bb('Negrita', h('b', null, 'B'), fmt('bold')),
