@@ -1,6 +1,6 @@
 {
   "name": "cuaderno",
-  "version": "0.1.0",
+  "version": "0.9.1",
   "private": true,
   "type": "module",
   "description": "PWA de apuntes, horario y calendario para iPhone y iPad.",

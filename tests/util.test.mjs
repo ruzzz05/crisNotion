@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ymd, parseYmd, dow, mins, hhmm, relDay, esc, col, tint, COLORS, greeting, pasteHtml, shouldCapitalize, TONES, barTop } from '../public/js/util.js';
+import { ymd, parseYmd, dow, mins, hhmm, relDay, esc, col, tint, COLORS, greeting, pasteHtml, shouldCapitalize, TONES, barTop, VERSION } from '../public/js/util.js';
 
 test('ymd formats a local date as yyyy-mm-dd with zero padding', () => {
   assert.equal(ymd(new Date(2026, 0, 5)), '2026-01-05');
@@ -124,4 +124,11 @@ test('barTop sits right above the keyboard, following the visual viewport', () =
 });
 test('barTop never goes above the top of the screen', () => {
   assert.equal(barTop({ innerHeight: 1000, vvHeight: 30, vvOffsetTop: 0, barHeight: 60 }), 0);
+});
+
+test('VERSION is the app version and matches package.json', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.equal(VERSION, '0.9.1');
+  assert.equal(pkg.version, VERSION);
 });

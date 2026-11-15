@@ -2,7 +2,7 @@
 import * as S from './store.js';
 import * as T from './tabs.js';
 import { h, icon, iconBtn, app, toast, menu, modal, openForm, confirmDialog } from './ui.js';
-import { COLORS, COLOR_NAMES, plain, tint } from './util.js';
+import { COLORS, COLOR_NAMES, VERSION, plain, tint } from './util.js';
 import { norm } from './model.js';
 import { home } from './views/home.js';
 import { pageView } from './views/page.js';
@@ -175,6 +175,7 @@ function drawSidebar() {
       h('button', { class: 'side-item side-new-book', type: 'button', onclick: () => bookForm() }, icon('plus'), h('span', null, 'Nuevo libro'))),
     h('nav', { class: 'side-foot' },
       cloud.label() && h('button', { class: 'side-item side-sync', type: 'button', title: 'Cuenta y sincronización', onclick: () => go('settings') }, icon('cloud'), h('span', { class: 'sync-label' }, cloud.label())),
+      h('div', { class: 'side-version', title: 'Versión de la app' }, 'v' + VERSION),
       item('trash'), item('settings')));
 }
 

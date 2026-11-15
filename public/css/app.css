@@ -60,6 +60,7 @@ h1, h2, h3, p, figure { margin: 0; }
 .ws-logo { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; background: var(--fg); color: var(--bg); font-size: .8125rem; font-weight: 700; }
 .ws-name { flex: 1; }
 .side-nav, .side-foot { padding: 2px 6px; }
+.side-version { padding: 0 8px 2px; font-size: .75rem; color: var(--fg3); }
 .side-foot { border-top: 1px solid var(--line); padding-bottom: calc(6px + env(safe-area-inset-bottom)); padding-top: 6px; }
 .side-scroll { flex: 1; overflow-y: auto; padding: 4px 6px 16px; }
 .side-item { display: flex; align-items: center; gap: 8px; width: 100%; min-height: var(--tap); padding: 0 8px; border-radius: 6px; font-weight: 500; }
