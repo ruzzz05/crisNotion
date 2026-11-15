@@ -129,6 +129,6 @@ test('barTop never goes above the top of the screen', () => {
 test('VERSION is the app version and matches package.json', async () => {
   const { readFile } = await import('node:fs/promises');
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
-  assert.equal(VERSION, '0.9.1');
+  assert.equal(VERSION, '0.9.2');
   assert.equal(pkg.version, VERSION);
 });

@@ -4,7 +4,7 @@ export const DAYS_SHORT = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 export const COLORS = ['gray', 'brown', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'red', 'teal', 'lime', 'indigo', 'wine'];
 export const COLOR_NAMES = { gray: 'gris', brown: 'marrón', orange: 'naranja', yellow: 'amarillo', green: 'verde', blue: 'azul', purple: 'morado', pink: 'rosa', red: 'rojo', teal: 'turquesa', lime: 'lima', indigo: 'índigo', wine: 'granate' };
 /** App version shown in the sidebar; kept equal to package.json (see tests). */
-export const VERSION = '0.9.1';
+export const VERSION = '0.9.2';
 /** Colours a text may take: the palette plus black (data-c on a span, see sanitize). */
 export const TONES = [...COLORS, 'black'];
 /** Top edge of the touch toolbar: its bottom sits on the visible bottom (above the on-screen keyboard). */
