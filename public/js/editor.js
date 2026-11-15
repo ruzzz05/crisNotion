@@ -3,7 +3,7 @@
 // Every structural change edits `page.blocks` and then calls sync(), which reconciles the DOM by block id.
 import * as S from './store.js';
 import { h, icon, app, menu, pop, placeNear, toast } from './ui.js';
-import { COLORS, COLOR_NAMES, barTop, esc, pasteHtml, sanitize, shouldCapitalize } from './util.js';
+import { COLORS, COLOR_NAMES, barTop, blocksTouchSelection, esc, pasteHtml, sanitize, shouldCapitalize } from './util.js';
 import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, pdfAssets, rangeEnd, rowOf, rowSizes, splitBlock, backspaceAction } from './model.js';
 import { createHistory } from './history.js';
 import { mountDrawing } from './drawing.js';
@@ -686,6 +686,10 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
   });
   root.append(title, list, line, tail, picker, pdfPicker);
   sync();
+
+  // Long-press selection on a touch screen would bring up iPadOS's cut/copy/paste bar. Blocked here; see ALLOW_TOUCH_SELECTION in util.js.
+  const noTouchSelect = e => { if (blocksTouchSelection(COARSE.matches)) e.preventDefault(); };
+  for (const el of [list, title]) { el.addEventListener('contextmenu', noTouchSelect); el.addEventListener('selectstart', noTouchSelect); }
 
   list.addEventListener('focusin', e => { const bl = e.target.closest('.blk'); if (bl) current = bl.dataset.id; });
   list.addEventListener('click', e => {

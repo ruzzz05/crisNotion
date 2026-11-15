@@ -3,8 +3,14 @@ export const DAYS_SHORT = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
 export const COLORS = ['gray', 'brown', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'red', 'teal', 'lime', 'indigo', 'wine'];
 export const COLOR_NAMES = { gray: 'gris', brown: 'marrón', orange: 'naranja', yellow: 'amarillo', green: 'verde', blue: 'azul', purple: 'morado', pink: 'rosa', red: 'rojo', teal: 'turquesa', lime: 'lima', indigo: 'índigo', wine: 'granate' };
+/**
+ * On touch screens the editor blocks long-press text selection, which brings up iPadOS's cut/copy/paste bar.
+ * To allow it again, set this to true (one line; nothing else depends on it).
+ */
+export const ALLOW_TOUCH_SELECTION = false;
+export const blocksTouchSelection = (isCoarse, allow = ALLOW_TOUCH_SELECTION) => isCoarse && !allow;
 /** App version shown in the sidebar; kept equal to package.json (see tests). */
-export const VERSION = '0.9.2';
+export const VERSION = '0.9.3';
 /** Colours a text may take: the palette plus black (data-c on a span, see sanitize). */
 export const TONES = [...COLORS, 'black'];
 /** Top edge of the touch toolbar: its bottom sits on the visible bottom (above the on-screen keyboard). */
