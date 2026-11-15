@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { childrenOf, ancestors, descendants, isAlive, rangeEnd, numbering, hidden, moveRange, maxIndent, filterCommands, migrate, splitBlock } from '../public/js/model.js';
+import { childrenOf, ancestors, descendants, isAlive, rangeEnd, numbering, hidden, moveRange, maxIndent, filterCommands, migrate, splitBlock, backspaceAction } from '../public/js/model.js';
 
 const pages = [
   { id: 'a', type: 'page', bookId: 'b1', parentId: null, order: 2 },
@@ -300,4 +300,15 @@ test('splitBlock: a toggle made from a selection starts open and keeps the colou
   const out = splitBlock([{ id: 'x', t: 'p', html: 'ab', color: 'red' }], 0, { before: 'a', mid: 'b', after: null, t: 'toggle', midId: 'm', afterId: 'a' });
   assert.equal(out[1].open, true);
   assert.equal(out[1].color, 'red');
+});
+
+test('backspaceAction: text only merges into a block of the same type', () => {
+  assert.equal(backspaceAction({ prevText: true, prevT: 'p', curT: 'p', curEmpty: false }), 'merge');
+  assert.equal(backspaceAction({ prevText: true, prevT: 'h1', curT: 'p', curEmpty: false }), 'none');
+  assert.equal(backspaceAction({ prevText: true, prevT: 'bullet', curT: 'p', curEmpty: false }), 'none');
+});
+test('backspaceAction: an empty block is removed, whatever the block above is', () => {
+  assert.equal(backspaceAction({ prevText: true, prevT: 'h1', curT: 'p', curEmpty: true }), 'remove');
+  assert.equal(backspaceAction({ prevText: false, prevT: 'image', curT: 'p', curEmpty: true }), 'remove');
+  assert.equal(backspaceAction({ prevText: false, prevT: 'image', curT: 'p', curEmpty: false }), 'none');
 });

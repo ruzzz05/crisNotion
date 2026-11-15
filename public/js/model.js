@@ -358,3 +358,13 @@ export function splitBlock(blocks, i, { before, mid, after, t, midId, afterId })
   if (after !== null) out.push({ ...b, id: afterId, html: after });
   return [...blocks.slice(0, i), ...out, ...blocks.slice(i + 1)];
 }
+
+/**
+ * What Backspace at the start of a block does. Text only joins a block of the same type, so a paragraph
+ * never turns into the title above it; an empty block just goes away; anything else is left alone.
+ */
+export function backspaceAction({ prevText, prevT, curT, curEmpty }) {
+  if (prevText && prevT === curT) return 'merge';
+  if (curEmpty) return 'remove';
+  return 'none';
+}

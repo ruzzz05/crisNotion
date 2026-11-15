@@ -4,7 +4,7 @@
 import * as S from './store.js';
 import { h, icon, app, menu, pop, placeNear, toast } from './ui.js';
 import { COLORS, COLOR_NAMES, barTop, esc, pasteHtml, sanitize, shouldCapitalize } from './util.js';
-import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, pdfAssets, rangeEnd, rowOf, rowSizes, splitBlock } from './model.js';
+import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, pdfAssets, rangeEnd, rowOf, rowSizes, splitBlock, backspaceAction } from './model.js';
 import { createHistory } from './history.js';
 import { mountDrawing } from './drawing.js';
 import { imageBox, shrink } from './image.js';
@@ -743,7 +743,6 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       place(C(nb.id), false);
       els.get(nb.id).scrollIntoView({ block: 'nearest' });
     } else if (e.key === 'Backspace' && caretAt(c, true)) {
-      if (b.t !== 'p') { e.preventDefault(); return setType(id, 'p', false); }
       if (ind(b) > 0) { e.preventDefault(); return shiftIndent(id, -1); }
       const hid = hidden(page.blocks);
       let j = i - 1;
@@ -751,12 +750,13 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       const prev = page.blocks[j];
       if (!prev) return;
       e.preventDefault();
-      if (!TEXT.has(prev.t)) {
-        if (c.textContent === '' && page.blocks.length > 1) {
-          removeBlock(id);
-          const p = textFrom(j, -1) || textFrom(j, 1);
-          if (p) place(C(p.id), true);
-        }
+      // Only the menu changes a block's type: Backspace never turns it into a paragraph or joins it into another type.
+      const action = backspaceAction({ prevText: TEXT.has(prev.t), prevT: prev.t, curT: b.t, curEmpty: c.textContent === '' });
+      if (action === 'none') return;
+      if (action === 'remove') {
+        removeBlock(id);
+        const p = textFrom(j, -1) || textFrom(j, 1);
+        if (p) place(C(p.id), true);
         return;
       }
       const pc = C(prev.id);
