@@ -15,8 +15,11 @@ export function spokenText(chunk, before = '') {
   if (!t) return '';
   return (before && !/\s$/.test(before) ? ' ' : '') + t + ' ';
 }
+/** Where the edit bar goes on screen: just under the breadcrumb bar, whose bottom edge is `topbarBottom`. */
+export const formatBarTop = topbarBottom => Math.round(topbarBottom + 6);
+
 /** App version shown in the sidebar; kept equal to package.json (see tests). */
-export const VERSION = '0.9.4';
+export const VERSION = '0.9.5';
 /** Colours a text may take: the palette plus black (data-c on a span, see sanitize). */
 export const TONES = [...COLORS, 'black'];
 /** Top edge of the touch toolbar: its bottom sits on the visible bottom (above the on-screen keyboard). */

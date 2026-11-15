@@ -3,7 +3,7 @@
 // Every structural change edits `page.blocks` and then calls sync(), which reconciles the DOM by block id.
 import * as S from './store.js';
 import { h, icon, app, menu, pop, placeNear, toast } from './ui.js';
-import { COLORS, COLOR_NAMES, barTop, blocksTouchSelection, esc, pasteHtml, sanitize, shouldCapitalize, spokenText } from './util.js';
+import { COLORS, COLOR_NAMES, barTop, blocksTouchSelection, esc, pasteHtml, sanitize, shouldCapitalize, spokenText, formatBarTop } from './util.js';
 import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, pdfAssets, rangeEnd, rowOf, rowSizes, splitBlock, backspaceAction } from './model.js';
 import { createHistory } from './history.js';
 import { mountDrawing } from './drawing.js';
@@ -613,7 +613,12 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     selTimer = setTimeout(() => {
       const c = selectedContent();
       if (!c) { bubble.hidden = true; fbar.hidden = true; return; }
-      if (COARSE.matches) { bubble.hidden = true; fbar.hidden = false; return; }
+      if (COARSE.matches) {
+        bubble.hidden = true;
+        fbar.style.top = formatBarTop(document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0) + 'px';
+        fbar.hidden = false;
+        return;
+      }
       fbar.hidden = true;
       bubble.hidden = false;
       placeNear(bubble, getSelection().getRangeAt(0).getBoundingClientRect(), { above: !COARSE.matches, gap: 8 });
