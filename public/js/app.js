@@ -12,6 +12,7 @@ import { tasks } from './views/tasks.js';
 import { trash } from './views/trash.js';
 import { settings } from './views/settings.js';
 import { exportItem, importFile } from './transfer.js';
+import { printPage } from './print.js';
 import { FONTS } from './theme.js';
 import { cloud } from './cloud.js';
 
@@ -89,6 +90,7 @@ function pageMenu(p, anchor) {
     { label: 'Fuente', icon: 'type', sub: [['', 'La de la aplicación'], ...FONTS].map(([k, label]) => ({ label, on: (p.font || '') === k, fn: () => { p.font = k; S.put(p); render(); } })) },
     { label: 'Ancho completo', icon: 'width', on: !!p.wide, fn: () => { p.wide = !p.wide; S.put(p); render(); } },
     top && { label: 'Color en el horario', icon: 'palette', sub: COLORS.map(c => ({ label: COLOR_NAMES[c][0].toUpperCase() + COLOR_NAMES[c].slice(1), swatch: tint(c), on: p.color === c, fn: () => { p.color = c; S.put(p); chrome(); } })) },
+    { label: 'Guardar como PDF', icon: 'doc', fn: () => printPage(p.title) },
     { label: 'Exportar página', icon: 'down', fn: () => exportItem(p.id) },
     { sep: true },
     { label: 'Eliminar', icon: 'trash', danger: true, fn: () => deletePage(p) },

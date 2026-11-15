@@ -430,14 +430,14 @@ await section('formatting bubble', async () => {
     document.dispatchEvent(new Event('selectionchange'));
   });
   await sleep(250);
-  check(await visible('.bubble'), 'selecting text shows the formatting bubble');
-  await page.click('.bubble [aria-label="Negrita"]');
-  await page.click('.bubble [aria-label="Código"]'); await sleep(100);
+  check(await visible('.fbar'), 'selecting text shows the formatting bar');
+  await page.click('.fbar [aria-label="Negrita"]');
+  await page.click('.fbar [aria-label="Código"]'); await sleep(100);
   const html = await page.evaluate(() => [...document.querySelectorAll('.blk .content')].find(e => e.textContent === 'Texto normal').innerHTML);
   check(/<b|font-weight/.test(html) && /<code/.test(html), 'bold and inline code are applied: ' + html);
   await shot('03-bubble');
   await press('ArrowRight'); await sleep(250);
-  check(!(await visible('.bubble')), 'bubble hides when the selection collapses');
+  check(!(await visible('.fbar')), 'the formatting bar hides when the selection collapses');
 });
 
 await section('long text, alignment and colour', async () => {
@@ -457,16 +457,16 @@ await section('long text, alignment and colour', async () => {
   const lines = () => page.evaluate(() => [...document.querySelectorAll('.blk .content div')].map(e => e.textContent).join('|'));
   check((await lines()).includes('Encabezado|línea uno||línea dos') || (await lines()).includes('Encabezado|línea uno|'), 'its lines are paragraphs of that block: ' + await lines());
   await para('Encabezado'); await sleep(250);
-  await page.click('.bubble [aria-label="Centrar"]'); await sleep(150);
+  await page.click('.fbar [aria-label="Centrar"]'); await sleep(150);
   const centred = await page.evaluate(() => [...document.querySelectorAll('.blk .content div')].find(e => e.textContent === 'Encabezado')?.style.textAlign);
   check(centred === 'center', 'a paragraph can be centred inside its block: ' + centred);
   await para('línea uno'); await sleep(250);
-  await page.click('.bubble [aria-label="Color del texto"]'); await sleep(150);
+  await page.click('.fbar [aria-label="Color del texto"]'); await sleep(150);
   await clickText('.pop .menu-item', 'Rojo'); await sleep(150);
   const red = await page.evaluate(() => { const s = document.querySelector('.blk .content [data-c=red]'); return s && [s.textContent, getComputedStyle(s).color]; });
   check(red && red[0] === 'línea uno' && red[1] === 'rgb(212, 76, 71)', 'the selected part takes the text colour: ' + JSON.stringify(red));
   await para('línea dos'); await sleep(250);
-  await page.click('.bubble [aria-label="Resaltar"]'); await sleep(150);
+  await page.click('.fbar [aria-label="Resaltar"]'); await sleep(150);
   const swatches = await count('.pop .menu-item');
   check(swatches >= 12, 'many highlight colours are offered: ' + swatches);
   await press('Escape'); await sleep(100);
@@ -1096,6 +1096,28 @@ await section('phone', async () => {
   await noOverflow('calendar'); await shot('m5-calendar');
   await page.tap('.side-toggle'); await sleep(300); await clickText('.side-item', 'Inicio'); await sleep(350);
   await noOverflow('home'); await shot('m6-home');
+});
+
+await section('print to PDF', async () => {
+  await page.setViewport({ width: 1100, height: 800 });
+  await page.reload({ waitUntil: 'networkidle0' }); await sleep(300);
+  await clickText('.tree-row .tree-title', 'Matemáticas II'); await sleep(300);
+  check(await visible('.blk'), 'a page with blocks is open');
+  const prevTitle = await page.evaluate(() => { window.__printed = 0; window.print = () => { window.__printed++; }; return document.title; });
+  await page.evaluate(() => import('/js/print.js').then(m => m.printPage('Tema 1: Células/ADN?')));
+  await sleep(300);
+  check(await page.evaluate(() => window.__printed === 1 && document.title === 'Tema 1 Células ADN'), 'Guardar como PDF opens the print dialog with the page title as name');
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  check(await page.evaluate(() => document.title) === prevTitle, 'the document title is restored after printing');
+  await page.emulateMediaType('print'); await sleep(150);
+  check(!(await visible('.sidebar')), 'print hides the sidebar');
+  check(!(await visible('.kbar')) && !(await visible('.topbar')), 'print hides the top bar and the editing toolbar');
+  check(await visible('.blk'), 'print keeps the page blocks');
+  await shot('pdf-print-view');
+  const pdf = await page.pdf({ path: join(OUT, 'pagina.pdf'), format: 'A4', printBackground: true });
+  check(pdf.length > 1000, 'a PDF is produced: ' + pdf.length + ' bytes');
+  await page.emulateMediaType('screen');
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
 });
 
 console.log('\nERRORS:', errors.length ? '\n' + errors.join('\n') : 'none');

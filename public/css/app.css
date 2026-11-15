@@ -609,3 +609,19 @@ select.photo-every { width: auto; min-height: 30px; padding-top: 2px; padding-bo
 /* Text colour on part of a block (palette colours follow the theme) and the bubble's colour button */
 [data-c="black"] { color: var(--c-black); } [data-c="gray"] { color: var(--c-gray); } [data-c="brown"] { color: var(--c-brown); } [data-c="orange"] { color: var(--c-orange); } [data-c="yellow"] { color: var(--c-yellow); } [data-c="green"] { color: var(--c-green); } [data-c="blue"] { color: var(--c-blue); } [data-c="purple"] { color: var(--c-purple); } [data-c="pink"] { color: var(--c-pink); } [data-c="red"] { color: var(--c-red); } [data-c="teal"] { color: var(--c-teal); } [data-c="lime"] { color: var(--c-lime); } [data-c="indigo"] { color: var(--c-indigo); } [data-c="wine"] { color: var(--c-wine); }
 .tc-a { font-weight: 700; border-bottom: 3px solid var(--c-red); line-height: 1; }
+
+/* ---------- Printing / Guardar como PDF: the page as it looks on screen, without the app's chrome ---------- */
+@page { margin: 16mm 14mm; }
+@media print {
+  .sidebar, .scrim, .tabstrip, .topbar, .kbar, .fbar, .bubble, .gutter, .blk-more, .page-ctl, .page-tail, .drop-line,
+  .cover-change, .img-grip, .draw-grip, .importHere, .photo-input, .pdf-input { display: none !important; }
+  .blk-more, .gutter { display: none !important; }
+  .content::before, .blk::before { content: none !important; }
+  html, body, .app, .main, .scroll { height: auto !important; overflow: visible !important; display: block !important; position: static !important; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  .page, .page-inner, .page-body { max-width: none !important; padding: 0 !important; margin: 0 !important; }
+  .blocks { width: 100%; }
+  .blk, .blk figure, .draw, .pdf { break-inside: avoid; }
+  .blk[data-t="image"] img, .draw img { max-width: 100%; }
+  a[href] { color: inherit; text-decoration: underline; }
+}

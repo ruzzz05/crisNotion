@@ -18,8 +18,11 @@ export function spokenText(chunk, before = '') {
 /** Where the edit bar goes on screen: just under the breadcrumb bar, whose bottom edge is `topbarBottom`. */
 export const formatBarTop = topbarBottom => Math.round(topbarBottom + 6);
 
+/** Name the browser gives a printed PDF: the page title without characters a file name cannot have. */
+export const printTitle = t => (t || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Sin título';
+
 /** App version shown in the sidebar; kept equal to package.json (see tests). */
-export const VERSION = '0.9.7';
+export const VERSION = '0.9.8';
 /** Colours a text may take: the palette plus black (data-c on a span, see sanitize). */
 export const TONES = [...COLORS, 'black'];
 /** Top edge of the touch toolbar: its bottom sits on the visible bottom (above the on-screen keyboard). */
