@@ -324,7 +324,7 @@ await section('photo', async () => {
 const pdfInk = () => page.evaluate(async () => new Promise(r => { const q = indexedDB.open('cuaderno'); q.onsuccess = () => { const g = q.result.transaction('drawings').objectStore('drawings').getAll(); g.onsuccess = () => r(g.result.filter(d => /:[0-9]+$/.test(d.id)).map(d => d.id.split(':')[1] + '=' + d.strokes.length)); }; }));
 const waitFor = async (fn, ms = 8000) => { for (const end = Date.now() + ms; Date.now() < end;) { if (await fn()) return true; await sleep(150); } return false; };
 
-const pdfPos = () => page.$eval('.pdf-pos', e => e.textContent.trim());
+const pdfPos = () => page.$eval('.pdf-pos', e => e.querySelector('.pdf-goto').value + ' ' + e.querySelector('.pdf-of').textContent);
 const goPage = async n => { for (let i = 0; i < 6; i++) { const cur = Number((await pdfPos()).split('/')[0]); if (cur === n) return; await page.click(`.blk[data-t=pdf] .pdf-nav[aria-label="${cur < n ? 'Página siguiente' : 'Página anterior'}"]`); await sleep(250); } };
 const shownSheets = () => page.$$eval('.pdf-page', els => els.filter(e => e.offsetParent).length);
 await section('pdf', async () => {
@@ -353,6 +353,24 @@ await section('pdf', async () => {
   check(await pdfPos() === '2 / 2' && await shownSheets() === 1 && await page.$$eval('.pdf-page .draw-img', els => els.filter(e => e.offsetParent).length) === 0, 'turning the page leaves the picture of page 1 behind');
   await goPage(1);
   check(await page.$$eval('.pdf-page .draw-img', els => els.filter(e => e.offsetParent).length) === 1, 'and it is still there when coming back');
+  // Typing a page number jumps there.
+  await page.click('.blk[data-t=pdf] .pdf-head .pdf-goto', { clickCount: 3 });
+  await page.keyboard.type('2'); await press('Enter'); await sleep(250);
+  check(await pdfPos() === '2 / 2' && await shownSheets() === 1, 'typing a page number jumps to that page: ' + await pdfPos());
+  await page.click('.blk[data-t=pdf] .pdf-head .pdf-goto', { clickCount: 3 });
+  await page.keyboard.type('99'); await press('Enter'); await sleep(250);
+  check(await pdfPos() === '2 / 2', 'a page number past the end stops at the last page: ' + await pdfPos());
+  await page.click('.blk[data-t=pdf] .pdf-head .pdf-goto', { clickCount: 3 });
+  await page.keyboard.type('x'); await press('Enter'); await sleep(250);
+  check(await pdfPos() === '2 / 2', 'a non-number leaves the page as it was: ' + await pdfPos());
+  // Turning the page does not move the view.
+  await goPage(1);
+  const y0 = await page.evaluate(() => { const sc = document.querySelector('.scroll'), p = document.querySelector('.pdf-foot'); sc.scrollTop = sc.scrollTop + p.getBoundingClientRect().top - innerHeight + 80; return sc.scrollTop; });
+  await sleep(150);
+  await page.click('.blk[data-t=pdf] .pdf-foot .pdf-nav[aria-label="Página siguiente"]'); await sleep(350);
+  const y1 = await page.evaluate(() => document.querySelector('.scroll').scrollTop);
+  check(await pdfPos() === '2 / 2' && Math.abs(y1 - y0) < 3, 'turning the page from the bottom keeps the view where it was: ' + y0 + ' -> ' + y1);
+  await goPage(1);
   await page.click('.blk[data-t=pdf] .draw-bar [aria-label="Bolígrafo"]');
   await shot('02c-pdf');
 });

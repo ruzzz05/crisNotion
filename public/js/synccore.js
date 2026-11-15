@@ -7,6 +7,9 @@
 
 // ---------- Text ----------
 
+/** Whether a data URL is a photo or a PDF. A PDF the browser gave no type to travels as octet-stream or without a type. */
+export const isFileData = s => typeof s === 'string' && /^data:(image[/]|application[/](pdf|octet-stream)[;,]|;)/.test(s);
+
 /** JSON text with every non-ASCII character escaped: still the same JSON, but safe to cut at any point. */
 export const ascii = s => s.replace(/[\u007f-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
 

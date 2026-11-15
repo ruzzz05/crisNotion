@@ -5,7 +5,7 @@
 import * as S from './store.js';
 import { h, icon, menu, toast } from './ui.js';
 import { sanitize } from './util.js';
-import { sideAdd, sideList, sideRemove, sidesUsed, stepPage } from './model.js';
+import { sideAdd, sideList, sideRemove, sidesUsed, stepPage, parsePage } from './model.js';
 import { mountSheet, mountToolbar, W } from './drawing.js';
 import { imageBox, shrink } from './image.js';
 
@@ -29,9 +29,16 @@ export function mountPdf(host, block, changed) {
   const status = h('p', { class: 'muted pdf-status' }, 'Abriendo el PDF…');
   const countEl = h('span', { class: 'muted pdf-count' });
   const pager = () => h('div', { class: 'pdf-pager' },
-    h('button', { class: 'ibtn pdf-nav', type: 'button', 'aria-label': 'Página anterior', onclick: e => turn(-1, e) }, icon('back')),
-    h('span', { class: 'pdf-pos' }),
-    h('button', { class: 'ibtn pdf-nav', type: 'button', 'aria-label': 'Página siguiente', onclick: e => turn(1, e) }, icon('next')));
+    h('button', { class: 'ibtn pdf-nav', type: 'button', 'aria-label': 'Página anterior', onclick: () => turn(-1) }, icon('back')),
+    h('span', { class: 'pdf-pos' },
+      h('input', {
+        class: 'pdf-goto', type: 'text', inputmode: 'numeric', 'aria-label': 'Ir a la página número',
+        onfocus: e => e.target.select(),
+        onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } },
+        onchange: e => { const n = parsePage(e.target.value, total); if (n) jump(n); e.target.value = cur; },
+      }),
+      h('span', { class: 'pdf-of' })),
+    h('button', { class: 'ibtn pdf-nav', type: 'button', 'aria-label': 'Página siguiente', onclick: () => turn(1) }, icon('next')));
   const sideFile = h('input', {
     class: 'side-file', type: 'file', accept: 'image/*', hidden: true, onchange: async () => {
       const f = sideFile.files[0], add = sideTarget;
@@ -121,15 +128,20 @@ export function mountPdf(host, block, changed) {
       if (i + 1 === n && dir) row.classList.add(dir > 0 ? 'from-next' : 'from-prev');
     });
     if (!rendered.has(n) && rows[n - 1]) { rendered.add(n); rows[n - 1].querySelector('.pdf-page').renderPage(); }
-    for (const el of host.querySelectorAll('.pdf-pos')) el.textContent = total ? `${n} / ${total}` : '';
+    for (const el of host.querySelectorAll('.pdf-pos')) {
+      el.querySelector('.pdf-goto').value = total ? n : '';
+      el.querySelector('.pdf-of').textContent = total ? `/ ${total}` : '';
+    }
     for (const b of host.querySelectorAll('.pdf-nav')) b.disabled = b.getAttribute('aria-label') === 'Página anterior' ? n <= 1 : n >= total;
   }
-  function turn(delta, e) {
-    const n = stepPage(cur, delta, total);
+  /** Changes the page without moving the view: the reader keeps looking at the same spot (e.g. the bottom). */
+  function jump(n) {
     if (n === cur) return;
-    show(n, delta);
-    if (e?.currentTarget.closest('.pdf-foot')) host.scrollIntoView({ block: 'start' });
+    const sc = host.closest('.scroll'), top = sc?.scrollTop;
+    show(n, Math.sign(n - cur));
+    if (sc) sc.scrollTop = top;
   }
+  const turn = delta => jump(stepPage(cur, delta, total));
 
   (async () => {
     try {

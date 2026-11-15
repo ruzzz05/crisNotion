@@ -214,7 +214,7 @@ test('photoIndex rotates through the photos once per period', async () => {
 });
 
 // ---------- Multi-day events, custom kinds, task ordering ----------
-import { spanPart, mergeKinds, placeAt, groupTasks, shownGroups, eventColor, stepPage } from '../public/js/model.js';
+import { spanPart, mergeKinds, placeAt, groupTasks, shownGroups, eventColor, stepPage, parsePage } from '../public/js/model.js';
 
 test('spanPart: a one-day event shows its title', () => {
   assert.equal(spanPart({ date: '2026-11-10' }, '2026-11-10'), 'single');
@@ -311,4 +311,16 @@ test('backspaceAction: an empty block is removed, whatever the block above is', 
   assert.equal(backspaceAction({ prevText: true, prevT: 'h1', curT: 'p', curEmpty: true }), 'remove');
   assert.equal(backspaceAction({ prevText: false, prevT: 'image', curT: 'p', curEmpty: true }), 'remove');
   assert.equal(backspaceAction({ prevText: false, prevT: 'image', curT: 'p', curEmpty: false }), 'none');
+});
+
+test('parsePage reads a typed page number, clamps it, and ignores anything else', () => {
+  assert.equal(parsePage('3', 5), 3);
+  assert.equal(parsePage(' 4 ', 5), 4);
+  assert.equal(parsePage('99', 5), 5);
+  assert.equal(parsePage('0', 5), 1);
+  assert.equal(parsePage('-2', 5), 1);
+  assert.equal(parsePage('2.7', 5), 2);
+  assert.equal(parsePage('', 5), null);
+  assert.equal(parsePage('abc', 5), null);
+  assert.equal(parsePage('3', 0), null);
 });

@@ -598,7 +598,8 @@ select.photo-every { width: auto; min-height: 30px; padding-top: 2px; padding-bo
 /* PDF: one page at a time, turned sideways */
 .pdf-row[hidden] { display: none; }
 .pdf-pager { display: flex; align-items: center; gap: 4px; }
-.pdf-pos { min-width: 3.5em; text-align: center; font-size: .8125rem; color: var(--fg2); font-variant-numeric: tabular-nums; }
+.pdf-pos { display: inline-flex; align-items: center; gap: 4px; justify-content: center; min-width: 3.5em; text-align: center; font-size: .8125rem; color: var(--fg2); font-variant-numeric: tabular-nums; }
+.pdf-goto { width: 2.6em; padding: 2px 0; text-align: center; font: inherit; color: var(--fg); background: transparent; border: 1px solid var(--line2); border-radius: 6px; }
 .pdf-nav:disabled { opacity: .3; }
 .pdf-foot { display: flex; justify-content: center; padding: 6px 0; }
 .pdf-row.from-next { animation: pdf-from-next .22s ease-out; } .pdf-row.from-prev { animation: pdf-from-prev .22s ease-out; }

@@ -6,7 +6,7 @@ import * as S from './store.js';
 import { app } from './ui.js';
 import { firebaseConfig } from './firebase-config.js';
 import { firestore } from './firestore.js';
-import { ascii, authErrorMessage, createSync, emailToUsername, keyOf, ownerAction, parseKey, usernameToEmail, validatePassword, validateUsername } from './synccore.js';
+import { ascii, authErrorMessage, isFileData, createSync, emailToUsername, keyOf, ownerAction, parseKey, usernameToEmail, validatePassword, validateUsername } from './synccore.js';
 
 const SDK = 'https://www.gstatic.com/firebasejs/10.14.1/';
 const MAX_FILE = 25e6;     // characters of base64 (about 18 MB of file): larger files stay on the device
@@ -22,7 +22,6 @@ const ls = {
 // ---------- This device ----------
 
 const editing = () => { const a = document.activeElement; return !!a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); };
-const FILE = /^data:(image[/]|application[/]pdf)/;
 
 const local = {
   async read(key) {
@@ -43,7 +42,7 @@ const local = {
       const d = JSON.parse(payload);
       if (d?.id === id) await S.applyDrawing(d);
     } else if (payload == null) await S.dropBlob(id);
-    else if (FILE.test(payload)) await S.applyBlob(id, await (await fetch(payload)).blob());
+    else if (isFileData(payload)) await S.applyBlob(id, await (await fetch(payload)).blob());
   },
   keys: async () => (await S.localKeys()).map(([kind, id, u]) => ({ key: keyOf(kind, id), u })),
   /** The page being written in is not swapped under the cursor; its cloud copy is taken on a later run. */

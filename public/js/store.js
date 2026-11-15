@@ -4,6 +4,7 @@
 import { db } from './db.js';
 import * as M from './model.js';
 import { COLORS } from './util.js';
+import { isFileData } from './synccore.js';
 
 const docs = new Map();
 const urls = new Map();
@@ -204,7 +205,6 @@ export async function exportBundle(id) {
   };
 }
 
-const BLOB_DATA = /^data:(image[/]|application[/]pdf)/;
 
 /** Adds an exported book as a new book, or an exported page to `bookId`. Returns the new book or page. */
 export async function importBundle(data, { bookId = null } = {}) {
@@ -215,7 +215,7 @@ export async function importBundle(data, { bookId = null } = {}) {
   const out = M.remapBundle({
     ...data, docs: list,
     drawings: (data.drawings || []).filter(d => d && typeof d.id === 'string'),
-    blobs: (data.blobs || []).filter(b => b && typeof b.id === 'string' && typeof b.data === 'string' && BLOB_DATA.test(b.data)),
+    blobs: (data.blobs || []).filter(b => b && typeof b.id === 'string' && isFileData(b.data)),
   }, uid);
   if (data.kind === 'page') {
     if (!liveBook(bookId)) throw new Error('missing book');
@@ -236,7 +236,7 @@ export async function importAll(data) {
   M.migrate(list);
   // A restored copy counts as changed now, so with cloud sync it is what the other devices get.
   for (const d of data.blobs || []) {
-    if (!d?.id || typeof d.data !== 'string' || !BLOB_DATA.test(d.data)) continue;
+    if (!d?.id || !isFileData(d.data)) continue;
     await db.put('blobs', { id: d.id, blob: await (await fetch(d.data)).blob() });
     changed('f', d.id, 'put');
   }

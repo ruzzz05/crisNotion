@@ -343,6 +343,13 @@ export const eventColor = (e, kinds, subject) => subject?.color || kinds[e.kind]
 /** Page shown after moving `delta` pages from `cur` (1-based) in a PDF of `total` pages; stays within 1..total. */
 export const stepPage = (cur, delta, total) => Math.max(1, Math.min(Math.max(1, total), cur + delta));
 
+/** Page number typed by the user, as an integer within 1..total; null when it is not a number or there are no pages. */
+export function parsePage(text, total) {
+  const n = Math.trunc(Number(String(text).trim()));
+  if (!String(text).trim() || !Number.isFinite(n) || total < 1) return null;
+  return Math.max(1, Math.min(total, n));
+}
+
 /**
  * Splits the text block at `i` around a selection: `before` keeps the original block (and its id), `mid` becomes
  * a new block of type `t`, and `after` follows it as a copy of the original. A null part is left out.

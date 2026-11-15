@@ -306,7 +306,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     if (file.type !== 'application/pdf' && !/[.]pdf$/i.test(file.name)) return toast('Ese archivo no es un PDF.');
     if (file.size > 80 * 1024 * 1024) return toast('Ese PDF es demasiado grande (más de 80 MB).');
     try {
-      const nb = { id: S.uid(), t: 'pdf', blob: await S.saveBlob(file), name: file.name, indent: 0 };
+      const nb = { id: S.uid(), t: 'pdf', blob: await S.saveBlob(file.type === 'application/pdf' ? file : new Blob([file], { type: 'application/pdf' })), name: file.name, indent: 0 };
       insertAt(belowIndex(page.blocks, I(after)), nb);
       if (replace) removeBlock(replace);
       els.get(nb.id)?.scrollIntoView({ block: 'start', behavior: 'smooth' });

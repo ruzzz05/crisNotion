@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ascii, split, keyOf, parseKey, decide, usernameToEmail, validateUsername, ownerAction, createSync } from '../public/js/synccore.js';
+import { ascii, split, keyOf, parseKey, decide, usernameToEmail, validateUsername, ownerAction, createSync, isFileData } from '../public/js/synccore.js';
 
 test('ascii keeps JSON valid while leaving only ASCII, so it can be cut anywhere', () => {
   const src = JSON.stringify({ t: 'Matemáticas 🚀 «límites»' });
@@ -188,4 +188,14 @@ test('reset forgets the cloud position so another account starts clean', async (
   await a.sync.markAll();
   await a.sync.run();
   assert.equal(other.docs.get('d_page').payload, 'v1');
+});
+
+test('isFileData accepts photos and PDFs, also when the browser gave a PDF no type', () => {
+  assert.ok(isFileData('data:image/jpeg;base64,AAAA'));
+  assert.ok(isFileData('data:application/pdf;base64,AAAA'));
+  assert.ok(isFileData('data:application/octet-stream;base64,AAAA'));
+  assert.ok(isFileData('data:;base64,AAAA'));
+  assert.ok(!isFileData('data:text/html;base64,AAAA'));
+  assert.ok(!isFileData('javascript:alert(1)'));
+  assert.ok(!isFileData(null));
 });
