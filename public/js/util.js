@@ -22,7 +22,7 @@ export const formatBarTop = topbarBottom => Math.round(topbarBottom + 6);
 export const printTitle = t => (t || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Sin título';
 
 /** App version shown in the sidebar; kept equal to package.json (see tests). */
-export const VERSION = '0.9.8';
+export const VERSION = '0.9.9';
 /** Colours a text may take: the palette plus black (data-c on a span, see sanitize). */
 export const TONES = [...COLORS, 'black'];
 /** Top edge of the touch toolbar: its bottom sits on the visible bottom (above the on-screen keyboard). */

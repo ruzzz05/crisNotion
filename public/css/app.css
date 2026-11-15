@@ -613,7 +613,7 @@ select.photo-every { width: auto; min-height: 30px; padding-top: 2px; padding-bo
 /* ---------- Printing / Guardar como PDF: the page as it looks on screen, without the app's chrome ---------- */
 @page { margin: 16mm 14mm; }
 @media print {
-  .sidebar, .scrim, .tabstrip, .topbar, .kbar, .fbar, .bubble, .gutter, .blk-more, .page-ctl, .page-tail, .drop-line,
+  .sidebar, .scrim, .tabstrip, .topbar, .kbar, .fbar, .bubble, .pop, .slash, .gutter, .blk-more, .page-ctl, .page-tail, .drop-line,
   .cover-change, .img-grip, .draw-grip, .importHere, .photo-input, .pdf-input { display: none !important; }
   .blk-more, .gutter { display: none !important; }
   .content::before, .blk::before { content: none !important; }

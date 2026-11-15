@@ -6,5 +6,5 @@ export function printPage(title) {
   const restore = () => { document.title = before; removeEventListener('afterprint', restore); };
   document.title = printTitle(title); // browsers use the document title as the PDF's name
   addEventListener('afterprint', restore);
-  setTimeout(() => print(), 150); // let the page menu close first, so it is not printed
+  print(); // called straight from the menu tap: iPadOS only opens the print sheet inside a user gesture
 }
