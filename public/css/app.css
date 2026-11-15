@@ -5,7 +5,7 @@
   --hover: rgba(55, 53, 47, .06); --active: rgba(55, 53, 47, .1); --line: rgba(55, 53, 47, .09); --line2: rgba(55, 53, 47, .16);
   --blue: #2383E2; --red: #EB5757; --card: #FFFFFF; --soft: #F1F1EF; --code: rgba(135, 131, 120, .15);
   --shadow: rgba(15, 15, 15, .05) 0 0 0 1px, rgba(15, 15, 15, .1) 0 3px 6px, rgba(15, 15, 15, .2) 0 9px 24px;
-  --c-gray: #787774; --c-brown: #9F6B53; --c-orange: #D9730D; --c-yellow: #CB912F; --c-green: #448361; --c-blue: #337EA9; --c-purple: #9065B0; --c-pink: #C14C8A; --c-red: #D44C47; --c-teal: #1F8A8A; --c-lime: #7A9A1E; --c-indigo: #5B66C4; --c-wine: #A3304F;
+  --c-gray: #787774; --c-brown: #9F6B53; --c-orange: #D9730D; --c-yellow: #CB912F; --c-green: #448361; --c-blue: #337EA9; --c-purple: #9065B0; --c-pink: #C14C8A; --c-red: #D44C47; --c-teal: #1F8A8A; --c-lime: #7A9A1E; --c-indigo: #5B66C4; --c-wine: #A3304F; --c-black: #000000;
   --b-gray: #F1F1EF; --b-brown: #F4EEEE; --b-orange: #FBECDD; --b-yellow: #FBF3DB; --b-green: #EDF3EC; --b-blue: #E7F3F8; --b-purple: #F6F3F9; --b-pink: #FAF1F5; --b-red: #FDEBEC; --b-teal: #E3F4F3; --b-lime: #F1F5DC; --b-indigo: #ECEEFA; --b-wine: #F8E8EC; --b-beige: #F5F0E6;
   --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji";
   --serif: Lyon-Text, Georgia, "Times New Roman", serif;
@@ -22,7 +22,7 @@
   --bg: #191919; --white: #101010; --side: #202020; --fg: rgba(255, 255, 255, .81); --fg2: rgba(255, 255, 255, .55); --fg3: rgba(255, 255, 255, .35);
   --hover: rgba(255, 255, 255, .055); --active: rgba(255, 255, 255, .1); --line: rgba(255, 255, 255, .094); --line2: rgba(255, 255, 255, .16);
   --card: #252525; --soft: #252525; --shadow: rgba(15, 15, 15, .2) 0 0 0 1px, rgba(15, 15, 15, .3) 0 3px 6px, rgba(15, 15, 15, .5) 0 9px 24px;
-  --c-gray: #9B9B9B; --c-brown: #BA856F; --c-orange: #C77D48; --c-yellow: #CA9849; --c-green: #529E72; --c-blue: #5E87C9; --c-purple: #9D68D3; --c-pink: #D15796; --c-red: #DF5452; --c-teal: #3FA3A3; --c-lime: #8FAE3C; --c-indigo: #7C86DB; --c-wine: #C2506E;
+  --c-gray: #9B9B9B; --c-brown: #BA856F; --c-orange: #C77D48; --c-yellow: #CA9849; --c-green: #529E72; --c-blue: #5E87C9; --c-purple: #9D68D3; --c-pink: #D15796; --c-red: #DF5452; --c-teal: #3FA3A3; --c-lime: #8FAE3C; --c-indigo: #7C86DB; --c-wine: #C2506E; --c-black: #EDEDED;
   --b-gray: #2F2F2F; --b-brown: #4A3228; --b-orange: #5C3B23; --b-yellow: #564328; --b-green: #243D30; --b-blue: #143A4E; --b-purple: #3C2D49; --b-pink: #4E2C3C; --b-red: #522E2A; --b-teal: #173E3E; --b-lime: #38401A; --b-indigo: #2A2F55; --b-wine: #4A2230; --b-beige: #2E2A22;
   color-scheme: dark;
 }
@@ -253,7 +253,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--b
 .g-add:hover, .g-drag:hover { background: var(--hover); }
 .g-drag { cursor: grab; touch-action: none; }
 .g-add .ico, .g-drag .ico { width: 16px; height: 16px; }
-@media (pointer: coarse) { .gutter { display: none; } }
+/* On a phone the + and handle would crowd the text (the ⋯ button does their job); on an iPad there is room, so they stay visible. */
+@media (pointer: coarse) and (max-width: 767px) { .gutter { display: none; } }
+@media (pointer: coarse) and (min-width: 768px) { .gutter { opacity: 1; } .g-drag { width: 28px; height: 32px; } }
 .blk[data-t="h1"] { margin-top: 1.6em; } .blk[data-t="h2"] { margin-top: 1.2em; } .blk[data-t="h3"] { margin-top: .9em; }
 .blk:first-child, .blk.in-row { margin-top: 1px; }
 .blk[data-t="h1"] .content { font-size: 1.875em; font-weight: 600; line-height: 1.3; }
@@ -597,5 +599,5 @@ select.photo-every { width: auto; min-height: 30px; padding-top: 2px; padding-bo
 @media (prefers-reduced-motion: reduce) { .pdf-row.from-next, .pdf-row.from-prev { animation: none; } }
 
 /* Text colour on part of a block (palette colours follow the theme) and the bubble's colour button */
-[data-c="gray"] { color: var(--c-gray); } [data-c="brown"] { color: var(--c-brown); } [data-c="orange"] { color: var(--c-orange); } [data-c="yellow"] { color: var(--c-yellow); } [data-c="green"] { color: var(--c-green); } [data-c="blue"] { color: var(--c-blue); } [data-c="purple"] { color: var(--c-purple); } [data-c="pink"] { color: var(--c-pink); } [data-c="red"] { color: var(--c-red); } [data-c="teal"] { color: var(--c-teal); } [data-c="lime"] { color: var(--c-lime); } [data-c="indigo"] { color: var(--c-indigo); } [data-c="wine"] { color: var(--c-wine); }
+[data-c="black"] { color: var(--c-black); } [data-c="gray"] { color: var(--c-gray); } [data-c="brown"] { color: var(--c-brown); } [data-c="orange"] { color: var(--c-orange); } [data-c="yellow"] { color: var(--c-yellow); } [data-c="green"] { color: var(--c-green); } [data-c="blue"] { color: var(--c-blue); } [data-c="purple"] { color: var(--c-purple); } [data-c="pink"] { color: var(--c-pink); } [data-c="red"] { color: var(--c-red); } [data-c="teal"] { color: var(--c-teal); } [data-c="lime"] { color: var(--c-lime); } [data-c="indigo"] { color: var(--c-indigo); } [data-c="wine"] { color: var(--c-wine); }
 .tc-a { font-weight: 700; border-bottom: 3px solid var(--c-red); line-height: 1; }

@@ -342,3 +342,19 @@ export const eventColor = (e, kinds, subject) => subject?.color || kinds[e.kind]
 
 /** Page shown after moving `delta` pages from `cur` (1-based) in a PDF of `total` pages; stays within 1..total. */
 export const stepPage = (cur, delta, total) => Math.max(1, Math.min(Math.max(1, total), cur + delta));
+
+/**
+ * Splits the text block at `i` around a selection: `before` keeps the original block (and its id), `mid` becomes
+ * a new block of type `t`, and `after` follows it as a copy of the original. A null part is left out.
+ * Parts are HTML strings; the caller reads them from the DOM so inline formatting survives.
+ */
+export function splitBlock(blocks, i, { before, mid, after, t, midId, afterId }) {
+  const b = blocks[i], out = [];
+  const piece = { id: midId, t, html: mid, indent: b.indent || 0 };
+  if (b.color) piece.color = b.color;
+  if (t === 'toggle') piece.open = true;
+  if (before !== null) out.push({ ...b, html: before });
+  out.push(piece);
+  if (after !== null) out.push({ ...b, id: afterId, html: after });
+  return [...blocks.slice(0, i), ...out, ...blocks.slice(i + 1)];
+}

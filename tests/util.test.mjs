@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ymd, parseYmd, dow, mins, hhmm, relDay, esc, col, tint, COLORS, greeting, pasteHtml, shouldCapitalize } from '../public/js/util.js';
+import { ymd, parseYmd, dow, mins, hhmm, relDay, esc, col, tint, COLORS, greeting, pasteHtml, shouldCapitalize, TONES, barTop } from '../public/js/util.js';
 
 test('ymd formats a local date as yyyy-mm-dd with zero padding', () => {
   assert.equal(ymd(new Date(2026, 0, 5)), '2026-01-05');
@@ -108,4 +108,20 @@ test('shouldCapitalize: not inside a sentence, for digits, or for what is alread
   assert.equal(shouldCapitalize('', '5'), false);
   assert.equal(shouldCapitalize('', 'M'), false);
   assert.equal(shouldCapitalize('', 'ñ'), true);
+});
+
+test('TONES are the palette colours plus black, the only values a text colour may take', () => {
+  assert.ok(TONES.includes('black'));
+  assert.ok(COLORS.every(c => TONES.includes(c)));
+});
+
+test('barTop keeps the bottom bar on the bottom of the screen when there is no keyboard', () => {
+  assert.equal(barTop({ innerHeight: 1000, vvHeight: 1000, vvOffsetTop: 0, barHeight: 60 }), 940);
+});
+test('barTop sits right above the keyboard, following the visual viewport', () => {
+  assert.equal(barTop({ innerHeight: 1000, vvHeight: 600, vvOffsetTop: 0, barHeight: 60 }), 540);
+  assert.equal(barTop({ innerHeight: 1000, vvHeight: 600, vvOffsetTop: 40, barHeight: 60 }), 580);
+});
+test('barTop never goes above the top of the screen', () => {
+  assert.equal(barTop({ innerHeight: 1000, vvHeight: 30, vvOffsetTop: 0, barHeight: 60 }), 0);
 });

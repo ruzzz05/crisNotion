@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { childrenOf, ancestors, descendants, isAlive, rangeEnd, numbering, hidden, moveRange, maxIndent, filterCommands, migrate } from '../public/js/model.js';
+import { childrenOf, ancestors, descendants, isAlive, rangeEnd, numbering, hidden, moveRange, maxIndent, filterCommands, migrate, splitBlock } from '../public/js/model.js';
 
 const pages = [
   { id: 'a', type: 'page', bookId: 'b1', parentId: null, order: 2 },
@@ -276,4 +276,28 @@ test('stepPage jumps to a page number within range, and copes with no pages', ()
   assert.equal(stepPage(1, 99, 5), 5);
   assert.equal(stepPage(4, -99, 5), 1);
   assert.equal(stepPage(1, 1, 0), 1);
+});
+
+test('splitBlock: the text before the selection stays, the selection becomes its own block, the rest follows', () => {
+  const blocks = [{ id: 'x', t: 'p', html: 'antes', indent: 1 }, { id: 'y', t: 'p', html: 'resto', indent: 0 }];
+  const out = splitBlock(blocks, 0, { before: 'antes ', mid: 'Titulo', after: ' despues', t: 'h3', midId: 'm', afterId: 'a' });
+  assert.deepEqual(out.map(b => [b.id, b.t, b.html, b.indent]), [
+    ['x', 'p', 'antes ', 1], ['m', 'h3', 'Titulo', 1], ['a', 'p', ' despues', 1], ['y', 'p', 'resto', 0],
+  ]);
+});
+test('splitBlock: no empty part before or after the selection', () => {
+  const blocks = [{ id: 'x', t: 'bullet', html: 'solo' }];
+  assert.deepEqual(splitBlock(blocks, 0, { before: null, mid: 'solo', after: null, t: 'h1', midId: 'm', afterId: 'a' })
+    .map(b => [b.id, b.t, b.html]), [['m', 'h1', 'solo']]);
+  assert.deepEqual(splitBlock([{ id: 'x', t: 'p', html: 'ab' }], 0, { before: 'a', mid: 'b', after: null, t: 'h2', midId: 'm', afterId: 'a' })
+    .map(b => [b.id, b.t, b.html]), [['x', 'p', 'a'], ['m', 'h2', 'b']]);
+});
+test('splitBlock: a selection that starts the block keeps the original id out of the way', () => {
+  const out = splitBlock([{ id: 'x', t: 'p', html: 'uno dos' }], 0, { before: null, mid: 'uno', after: ' dos', t: 'h2', midId: 'm', afterId: 'a' });
+  assert.deepEqual(out.map(b => [b.id, b.t, b.html]), [['m', 'h2', 'uno'], ['a', 'p', ' dos']]);
+});
+test('splitBlock: a toggle made from a selection starts open and keeps the colour', () => {
+  const out = splitBlock([{ id: 'x', t: 'p', html: 'ab', color: 'red' }], 0, { before: 'a', mid: 'b', after: null, t: 'toggle', midId: 'm', afterId: 'a' });
+  assert.equal(out[1].open, true);
+  assert.equal(out[1].color, 'red');
 });

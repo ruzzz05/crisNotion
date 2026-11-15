@@ -3,8 +3,9 @@
 // Every structural change edits `page.blocks` and then calls sync(), which reconciles the DOM by block id.
 import * as S from './store.js';
 import { h, icon, app, menu, pop, placeNear, toast } from './ui.js';
-import { COLORS, COLOR_NAMES, esc, pasteHtml, sanitize, shouldCapitalize } from './util.js';
-import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, pdfAssets, rangeEnd, rowOf, rowSizes } from './model.js';
+import { COLORS, COLOR_NAMES, barTop, esc, pasteHtml, sanitize, shouldCapitalize } from './util.js';
+import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, pdfAssets, rangeEnd, rowOf, rowSizes, splitBlock } from './model.js';
+import { createHistory } from './history.js';
 import { mountDrawing } from './drawing.js';
 import { imageBox, shrink } from './image.js';
 import { mountPdf } from './pdf.js';
@@ -83,7 +84,32 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
   let slashEscaped = false;
 
   const flush = () => { clearTimeout(timer); if (dirty) { dirty = false; S.put(page); } };
-  const touch = () => { dirty = true; clearTimeout(timer); timer = setTimeout(flush, 600); };
+  const save = () => { dirty = true; clearTimeout(timer); timer = setTimeout(flush, 600); };
+  // Undo/redo. `snap` is the last recorded state; a burst of edits within a second becomes one undo step.
+  const hist = createHistory();
+  let snap = JSON.stringify(page.blocks), snapCount = page.blocks.length, lastEdit = 0;
+  const touch = () => {
+    const now = JSON.stringify(page.blocks);
+    if (now !== snap) {
+      const t = Date.now();
+      if (t - lastEdit > 1000 || page.blocks.length !== snapCount) hist.record(snap);
+      snap = now; snapCount = page.blocks.length; lastEdit = t;
+    }
+    save();
+  };
+  /** Goes one step back (dir -1) or forward (dir 1) through the page's block history. */
+  function step(dir) {
+    const cur = JSON.stringify(page.blocks);
+    const target = dir < 0 ? hist.undo(cur) : hist.redo(cur);
+    if (target === null) return;
+    page.blocks = JSON.parse(target);
+    snap = target; snapCount = page.blocks.length; lastEdit = 0;
+    if (current && !page.blocks.some(b => b.id === current)) current = null;
+    // Text changed underneath the DOM, so every block element is rebuilt.
+    for (const id of [...els.keys()]) drop(id);
+    sync();
+    save();
+  }
   const B = id => page.blocks.find(b => b.id === id);
   const I = id => page.blocks.findIndex(b => b.id === id);
   const C = id => els.get(id)?.querySelector('.content');
@@ -518,6 +544,34 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     });
   }
 
+  /** Turns the selected part of a text block into a block of its own, of type `t`; the text before and after stays in blocks around it. */
+  function splitSelection(t) {
+    const c = selectedContent(), s = getSelection();
+    if (!c || !s.rangeCount || s.isCollapsed) return;
+    const id = c.parentElement.dataset.id, b = B(id), i = I(id);
+    if (b.row) return toast('Ese bloque está en columnas; sácalo para dividirlo.');
+    const r = s.getRangeAt(0).cloneRange();
+    const pre = document.createRange();
+    pre.selectNodeContents(c);
+    pre.setEnd(r.startContainer, r.startOffset);
+    const post = document.createRange();
+    post.selectNodeContents(c);
+    post.setStart(r.endContainer, r.endOffset);
+    const part = rg => { const d = h('div'); d.append(rg.cloneContents()); return d; };
+    const before = part(pre), mid = part(r), after = part(post);
+    const hasBefore = before.textContent !== '', hasAfter = after.textContent !== '';
+    if (!hasBefore && !hasAfter) return setType(id, t);
+    const midId = S.uid();
+    page.blocks = splitBlock(page.blocks, i, {
+      before: hasBefore ? before.innerHTML : null, mid: t === 'code' ? esc(mid.textContent) : mid.innerHTML,
+      after: hasAfter ? after.innerHTML : null, t, midId, afterId: S.uid(),
+    });
+    drop(id);
+    sync();
+    touch();
+    place(C(midId), true);
+  }
+
   const fmt = cmd => () => document.execCommand(cmd);
   const bb = (label, content, fn) => h('button', { type: 'button', 'aria-label': label, title: label, onmousedown: keep, onclick: fn }, content);
   const bubble = h('div', { class: 'bubble', role: 'toolbar', 'aria-label': 'Formato', hidden: true },
@@ -530,10 +584,15 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     bb('Alinear a la izquierda', icon('alignL'), () => align('justifyLeft')),
     bb('Centrar', icon('alignC'), () => align('justifyCenter')),
     bb('Alinear a la derecha', icon('alignR'), () => align('justifyRight')),
+    bb('Pasar la selección a bloque propio', icon('swap'), e => {
+      const s = getSelection(), saved = s.rangeCount ? s.getRangeAt(0).cloneRange() : null;
+      const run = t => () => { if (saved) { s.removeAllRanges(); s.addRange(saved); } splitSelection(t); };
+      menu(e.currentTarget, COMMANDS.filter(c => TEXT.has(c.t)).map(c => ({ label: c.label, fn: run(c.t) })));
+    }),
     bb('Color del texto', h('span', { class: 'tc-a' }, 'A'), e => {
       const s = getSelection(), saved = s.rangeCount ? s.getRangeAt(0).cloneRange() : null;
       const run = c => () => { if (saved) { s.removeAllRanges(); s.addRange(saved); } textColor(c); };
-      menu(e.currentTarget, [{ label: 'Predeterminado', icon: 'x', fn: run('') }, ...COLORS.map(c => ({ label: COLOR_NAMES[c].replace(/^./, x => x.toUpperCase()), swatch: 'background:var(--c-' + c + ')', fn: run(c) }))]);
+      menu(e.currentTarget, [{ label: 'Predeterminado', icon: 'x', fn: run('') }, { label: 'Negro', swatch: 'background:var(--c-black)', fn: run('black') }, ...COLORS.map(c => ({ label: COLOR_NAMES[c].replace(/^./, x => x.toUpperCase()), swatch: 'background:var(--c-' + c + ')', fn: run(c) }))]);
     }),
     bb('Resaltar', h('span', { class: 'hl-a' }, 'A'), e => {
       const s = getSelection(), saved = s.rangeCount ? s.getRangeAt(0).cloneRange() : null;
@@ -559,6 +618,8 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
   const kb = (label, content, fn) => h('button', { type: 'button', 'aria-label': label, title: label, onmousedown: keep, onclick: fn }, content);
   const onCurrent = fn => () => { const b = current && B(current); if (b && TEXT.has(b.t)) fn(b); };
   const kbar = h('div', { class: 'kbar', role: 'toolbar', 'aria-label': 'Herramientas de edición' },
+    kb('Deshacer', icon('undo'), () => step(-1)),
+    kb('Rehacer', icon('redo'), () => step(1)),
     kb('Añadir bloque', icon('plus'), e => (slash ? closeSlash() : openSlash('', { mode: 'pick', anchor: e.currentTarget, blockId: current && B(current) ? current : page.blocks.at(-1).id }))),
     kb('Añadir foto', icon('image'), () => apply('image', current)),
     kb('Añadir dibujo a mano', icon('pen'), () => apply('draw', current)),
@@ -572,10 +633,16 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     kb('Opciones del bloque', icon('more'), e => { if (current && B(current)) blockMenu(current, e.currentTarget); }),
     kb('Ocultar el teclado', icon('keyboard'), () => document.activeElement?.blur()));
   document.body.append(kbar);
+  // Pinned to the bottom of the visible area, which on iPad shrinks when the on-screen keyboard opens: the bar sits right above it.
   const vv = window.visualViewport;
-  const liftBar = () => { kbar.style.bottom = Math.max(0, innerHeight - (vv ? vv.height + vv.offsetTop : innerHeight)) + 'px'; };
+  const liftBar = () => {
+    kbar.style.bottom = 'auto';
+    kbar.style.top = barTop({ innerHeight, vvHeight: vv ? vv.height : innerHeight, vvOffsetTop: vv ? vv.offsetTop : 0, barHeight: kbar.offsetHeight }) + 'px';
+  };
   vv?.addEventListener('resize', liftBar);
   vv?.addEventListener('scroll', liftBar);
+  addEventListener('resize', liftBar);
+  liftBar();
 
   // ---------- DOM ----------
 
@@ -641,16 +708,20 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     }
     const id = c.parentElement.dataset.id, b = B(id), i = I(id);
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') { e.preventDefault(); return inlineCode(); }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) {
+      e.preventDefault();
+      return step(e.key.toLowerCase() === 'y' || e.shiftKey ? 1 : -1);
+    }
     if (e.key === 'Tab') {
       e.preventDefault();
       if (b.t === 'code') return document.execCommand('insertText', false, '  ');
       return shiftIndent(id, e.shiftKey ? -1 : 1);
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter') {
       if (b.t === 'code') return;
       e.preventDefault();
-      // In a plain text block Enter is a new line of the same block; another block comes from the + button (or Ctrl/Cmd+Enter).
-      if (b.t === 'p' && !e.ctrlKey && !e.metaKey) { document.execCommand('defaultParagraphSeparator', false, 'div'); document.execCommand('insertParagraph'); return; }
+      // In a plain text block Enter is a new line of the same block. Shift+Enter, Ctrl/Cmd+Enter or the + button split it into another block.
+      if (b.t === 'p' && !e.ctrlKey && !e.metaKey && !e.shiftKey) { document.execCommand('defaultParagraphSeparator', false, 'div'); document.execCommand('insertParagraph'); return; }
       const blank = c.textContent === '';
       if (blank && (b.t !== 'p' || ind(b) > 0)) return ind(b) > 0 && (LIST.has(b.t) || b.t === 'p') ? shiftIndent(id, -1) : setType(id, 'p');
       const follow = LIST.has(b.t) ? b.t : 'p';
@@ -797,6 +868,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       removeEventListener('pointerdown', onOutside, true);
       vv?.removeEventListener('resize', liftBar);
       vv?.removeEventListener('scroll', liftBar);
+      removeEventListener('resize', liftBar);
       for (const fn of cleanups.values()) fn();
     },
   };

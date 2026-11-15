@@ -3,6 +3,10 @@ export const DAYS_SHORT = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
 export const COLORS = ['gray', 'brown', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'red', 'teal', 'lime', 'indigo', 'wine'];
 export const COLOR_NAMES = { gray: 'gris', brown: 'marrón', orange: 'naranja', yellow: 'amarillo', green: 'verde', blue: 'azul', purple: 'morado', pink: 'rosa', red: 'rojo', teal: 'turquesa', lime: 'lima', indigo: 'índigo', wine: 'granate' };
+/** Colours a text may take: the palette plus black (data-c on a span, see sanitize). */
+export const TONES = [...COLORS, 'black'];
+/** Top edge of the touch toolbar: its bottom sits on the visible bottom (above the on-screen keyboard). */
+export const barTop = ({ innerHeight, vvHeight, vvOffsetTop, barHeight }) => Math.max(0, Math.round(vvOffsetTop + vvHeight - barHeight));
 export const col = key => (COLORS.includes(key) ? key : 'blue');
 /** Inline style exposing a colour as --c (text) and --b (background). */
 export const tint = key => `--c:var(--c-${col(key)});--b:var(--b-${col(key)})`;
@@ -85,7 +89,7 @@ export function sanitize(html) {
     }
     const bg = el.style?.backgroundColor;
     const align = el.tagName === 'DIV' && ALIGNS.has(el.style?.textAlign) ? el.style.textAlign : null;
-    const tone = el.tagName === 'SPAN' && COLORS.includes(el.dataset?.c) ? el.dataset.c : null;
+    const tone = el.tagName === 'SPAN' && TONES.includes(el.dataset?.c) ? el.dataset.c : null;
     const href = el.tagName === 'A' ? el.getAttribute('href') : null;
     for (const a of [...el.attributes]) el.removeAttribute(a.name);
     if (bg && bg !== 'transparent') el.style.backgroundColor = bg;
