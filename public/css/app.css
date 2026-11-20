@@ -367,6 +367,13 @@ input.color-hex { min-height: 32px; font-family: var(--mono); font-size: .875rem
 .pdf-status { padding: 12px; }
 .pdf-pages { --l: 30px; --r: 30px; display: flex; flex-direction: column; gap: 10px; padding: 10px 4px; background: var(--soft); border-radius: 0 0 6px 6px; }
 .pdf-pages.has-l { --l: minmax(0, .42fr); } .pdf-pages.has-r { --r: minmax(0, .42fr); }
+.pdf-pages { --zoom: 1; }
+.pdf-pages.zoomed { overflow-x: auto; overscroll-behavior-x: contain; }
+.pdf-pages .pdf-row { width: calc(100% * var(--zoom)); }
+.pdf-pages.zoomed .pdf-row { flex: none; }
+.pdf-zoom { display: inline-flex; align-items: center; gap: 2px; }
+.pdf-zoom-val { min-width: 3.2em; padding: 2px 4px; font: inherit; font-size: .8125rem; color: var(--fg2); background: transparent; border: 0; border-radius: 6px; font-variant-numeric: tabular-nums; }
+.pdf-zoom button:disabled { opacity: .3; }
 .pdf-row { display: grid; grid-template-columns: var(--l) minmax(0, 1fr) var(--r); gap: 6px; align-items: start; }
 .pdf-page { width: 100%; min-width: 0; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
 /* A PDF with notes in its margins spreads into the page padding, so the sheets stay large. */
