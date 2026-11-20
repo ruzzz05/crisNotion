@@ -214,7 +214,7 @@ test('photoIndex rotates through the photos once per period', async () => {
 });
 
 // ---------- Multi-day events, custom kinds, task ordering ----------
-import { spanPart, mergeKinds, placeAt, groupTasks, shownGroups, eventColor, stepPage, parsePage } from '../public/js/model.js';
+import { spanPart, mergeKinds, placeAt, groupTasks, shownGroups, eventColor, stepPage, parsePage, stepZoom } from '../public/js/model.js';
 
 test('spanPart: a one-day event shows its title', () => {
   assert.equal(spanPart({ date: '2026-11-10' }, '2026-11-10'), 'single');
@@ -323,4 +323,11 @@ test('parsePage reads a typed page number, clamps it, and ignores anything else'
   assert.equal(parsePage('', 5), null);
   assert.equal(parsePage('abc', 5), null);
   assert.equal(parsePage('3', 0), null);
+});
+
+test('stepZoom moves between PDF zoom steps and stops at both ends', () => {
+  assert.equal(stepZoom(1, 1), 1.25);
+  assert.equal(stepZoom(1, -1), 1);
+  assert.equal(stepZoom(2, -1), 1.5);
+  assert.equal(stepZoom(3, 1), 3);
 });

@@ -5,7 +5,7 @@
 import * as S from './store.js';
 import { h, icon, menu, toast } from './ui.js';
 import { sanitize, pdfScale } from './util.js';
-import { sideAdd, sideList, sideRemove, sidesUsed, stepPage, parsePage } from './model.js';
+import { sideAdd, sideList, sideRemove, sidesUsed, stepPage, parsePage, stepZoom } from './model.js';
 import { mountSheet, mountToolbar, W } from './drawing.js';
 import { imageBox, shrink } from './image.js';
 
@@ -21,7 +21,7 @@ const load = () => lib ??= import('../vendor/pdfjs/pdf.min.mjs').then(m => {
 export const pageInkId = (blockId, n) => `${blockId}:${n}`;
 
 export function mountPdf(host, block, changed) {
-  let dead = false, active = null, task = null, sideTarget = null, cur = 1, total = 0;
+  let dead = false, active = null, task = null, sideTarget = null, cur = 1, total = 0, zoom = 1;
   const sheets = [], rows = [];
   const noteSheets = new Map(); // margin drawing id -> sheet
   const bar = h('div', { class: 'draw-bar pdf-bar', role: 'toolbar', 'aria-label': 'Herramientas para anotar el PDF' });
@@ -39,6 +39,10 @@ export function mountPdf(host, block, changed) {
       }),
       h('span', { class: 'pdf-of' })),
     h('button', { class: 'ibtn pdf-nav', type: 'button', 'aria-label': 'Página siguiente', onclick: () => turn(1) }, icon('next')));
+  const zoomEl = h('span', { class: 'pdf-zoom' },
+    h('button', { class: 'ibtn zoom-out', type: 'button', 'aria-label': 'Reducir el PDF', title: 'Reducir', onclick: () => setZoom(stepZoom(zoom, -1)) }, icon('minus')),
+    h('button', { class: 'pdf-zoom-val', type: 'button', 'aria-label': 'Ajustar al ancho', title: 'Ajustar al ancho', onclick: () => setZoom(1) }, '100%'),
+    h('button', { class: 'ibtn zoom-in', type: 'button', 'aria-label': 'Ampliar el PDF', title: 'Ampliar', onclick: () => setZoom(stepZoom(zoom, 1)) }, icon('plus')));
   const sideFile = h('input', {
     class: 'side-file', type: 'file', accept: 'image/*', hidden: true, onchange: async () => {
       const f = sideFile.files[0], add = sideTarget;
@@ -49,7 +53,7 @@ export function mountPdf(host, block, changed) {
     },
   });
   host.append(
-    h('div', { class: 'pdf-head' }, icon('doc'), h('span', { class: 'pdf-name' }, block.name || 'Documento PDF'), countEl, pager()),
+    h('div', { class: 'pdf-head' }, icon('doc'), h('span', { class: 'pdf-name' }, block.name || 'Documento PDF'), countEl, zoomEl, pager()),
     bar, status, pagesEl, h('div', { class: 'pdf-foot' }, pager()), sideFile);
 
   // The tools act on the sheet last touched while it is on screen; otherwise on the first sheet in view.
@@ -135,6 +139,18 @@ export function mountPdf(host, block, changed) {
     }
     for (const b of host.querySelectorAll('.pdf-nav')) b.disabled = b.getAttribute('aria-label') === 'Página anterior' ? n <= 1 : n >= total;
   }
+  /** Zooms only the PDF sheets: they grow inside their own frame, which scrolls sideways; the page around it stays put. */
+  function setZoom(z) {
+    if (z === zoom) return;
+    const w = pagesEl.scrollWidth || 1, mid = (pagesEl.scrollLeft + pagesEl.clientWidth / 2) / w;
+    zoom = z;
+    pagesEl.style.setProperty('--zoom', z);
+    pagesEl.classList.toggle('zoomed', z > 1);
+    zoomEl.querySelector('.pdf-zoom-val').textContent = `${Math.round(z * 100)}%`;
+    zoomEl.querySelector('.zoom-out').disabled = z <= 1;
+    zoomEl.querySelector('.zoom-in').disabled = stepZoom(z, 1) === z;
+    pagesEl.scrollLeft = mid * pagesEl.scrollWidth - pagesEl.clientWidth / 2; // keeps looking at the same spot
+  }
   /** Changes the page without moving the view: the reader keeps looking at the same spot (e.g. the bottom). */
   function jump(n) {
     if (n === cur) return;
@@ -142,8 +158,15 @@ export function mountPdf(host, block, changed) {
     show(n, Math.sign(n - cur));
     if (sc) sc.scrollTop = top;
   }
+  pagesEl.addEventListener('wheel', e => { // Ctrl + wheel (or trackpad pinch) zooms the sheets instead of the browser page
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    setZoom(stepZoom(zoom, e.deltaY < 0 ? 1 : -1));
+  }, { passive: false });
   const turn = delta => jump(stepPage(cur, delta, total));
 
+  setZoom(1);
+  zoomEl.querySelector('.zoom-out').disabled = true;
   (async () => {
     try {
       const blob = await S.getBlob(block.blob);

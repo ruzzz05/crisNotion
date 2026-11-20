@@ -343,6 +343,15 @@ export const eventColor = (e, kinds, subject) => subject?.color || kinds[e.kind]
 /** Page shown after moving `delta` pages from `cur` (1-based) in a PDF of `total` pages; stays within 1..total. */
 export const stepPage = (cur, delta, total) => Math.max(1, Math.min(Math.max(1, total), cur + delta));
 
+/** Zoom steps of a PDF block (1 = fit the width); only the sheets grow, never the whole page. */
+export const ZOOMS = [1, 1.25, 1.5, 2, 2.5, 3];
+/** Zoom after moving `dir` steps (+1 / -1) from `z`; stays within the available steps. */
+export function stepZoom(z, dir) {
+  let i = 0;
+  ZOOMS.forEach((v, k) => { if (Math.abs(v - z) < Math.abs(ZOOMS[i] - z)) i = k; });
+  return ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, i + dir))];
+}
+
 /** Page number typed by the user, as an integer within 1..total; null when it is not a number or there are no pages. */
 export function parsePage(text, total) {
   const n = Math.trunc(Number(String(text).trim()));
