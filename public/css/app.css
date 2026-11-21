@@ -371,6 +371,8 @@ input.color-hex { min-height: 32px; font-family: var(--mono); font-size: .875rem
 .pdf-pages.zoomed { overflow-x: auto; overscroll-behavior-x: contain; }
 .pdf-pages .pdf-row { width: calc(100% * var(--zoom)); }
 .pdf-pages.zoomed .pdf-row { flex: none; }
+.pdf-bar.ink-off .tb:not(.ink-toggle):not(.color) { opacity: .4; }
+.pdf-bar.ink-off .tb.color, .pdf-bar.ink-off .stroke { opacity: .4; }
 .pdf-zoom { display: inline-flex; align-items: center; gap: 2px; }
 .pdf-zoom-val { min-width: 3.2em; padding: 2px 4px; font: inherit; font-size: .8125rem; color: var(--fg2); background: transparent; border: 0; border-radius: 6px; font-variant-numeric: tabular-nums; }
 .pdf-zoom button:disabled { opacity: .3; }

@@ -21,7 +21,7 @@ const load = () => lib ??= import('../vendor/pdfjs/pdf.min.mjs').then(m => {
 export const pageInkId = (blockId, n) => `${blockId}:${n}`;
 
 export function mountPdf(host, block, changed) {
-  let dead = false, active = null, task = null, sideTarget = null, cur = 1, total = 0, zoom = 1;
+  let dead = false, active = null, task = null, sideTarget = null, cur = 1, total = 0, zoom = 1, inkOn = true;
   const sheets = [], rows = [];
   const noteSheets = new Map(); // margin drawing id -> sheet
   const bar = h('div', { class: 'draw-bar pdf-bar', role: 'toolbar', 'aria-label': 'Herramientas para anotar el PDF' });
@@ -59,7 +59,20 @@ export function mountPdf(host, block, changed) {
   // The tools act on the sheet last touched while it is on screen; otherwise on the first sheet in view.
   const onScreen = s => { const r = s.stage.getBoundingClientRect(); return r.bottom > 80 && r.top < innerHeight - 80; };
   const target = () => (active && onScreen(active) ? active : sheets.find(onScreen) || active || sheets[0] || null);
-  const unbar = mountToolbar(bar, { sheet: target, images: true });
+  const unbar = mountToolbar(bar, {
+    sheet: target, images: true,
+    extra: () => [h('span', { class: 'tb-sep' }), h('button', {
+      class: `tb ink-toggle${inkOn ? ' on' : ''}`, type: 'button', 'aria-pressed': String(inkOn), 'aria-label': 'Lápiz activado: escribir y dibujar',
+      title: inkOn ? 'Lápiz activado (toca para solo desplazar)' : 'Lápiz desactivado: solo desplaza (toca para activar)',
+      onclick: e => {
+        inkOn = !inkOn;
+        bar.classList.toggle('ink-off', !inkOn);
+        e.currentTarget.classList.toggle('on', inkOn);
+        e.currentTarget.setAttribute('aria-pressed', String(inkOn));
+        e.currentTarget.title = inkOn ? 'Lápiz activado (toca para solo desplazar)' : 'Lápiz desactivado: solo desplaza (toca para activar)';
+      },
+    }, icon('pen'))],
+  });
   const setActive = s => { active = s; };
 
   /** Every sheet keeps the same width: a margin opens on all of them as soon as one sheet uses it. */
@@ -189,7 +202,7 @@ export function mountPdf(host, block, changed) {
         const row = h('div', { class: 'pdf-row', hidden: n !== 1 }, side(n, 'l'), stage, side(n, 'r'));
         rows.push(row);
         pagesEl.append(row);
-        sheets.push(mountSheet(stage, { id: pageInkId(block.id, n), height: () => W * vp.height / vp.width, images: true, light: true, onActive: setActive }));
+        sheets.push(mountSheet(stage, { id: pageInkId(block.id, n), height: () => W * vp.height / vp.width, images: true, light: true, onActive: setActive, inking: () => inkOn }));
         stage.style.aspectRatio = `${vp.width} / ${vp.height}`; // the sheet has its height before it is drawn, so showing it never shortens the page
         let job = null;
         stage.renderPage = async () => {

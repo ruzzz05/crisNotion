@@ -167,8 +167,9 @@ export function mountToolbar(bar, { sheet = () => null, images = false, extra = 
  * opts.light         – always use light-theme ink colours
  * opts.units         – width of the sheet in units (1000 by default; narrow sheets use fewer so lines keep their weight)
  * opts.onActive(api) – called when the sheet is drawn on (lets a shared toolbar target it)
+ * opts.inking()     – false while the pencil is off: every pointer then only scrolls
  */
-export function mountSheet(stage, { id, height, setHeight = null, images: allowImages = false, light = false, units = W, onActive = () => {} }) {
+export function mountSheet(stage, { id, height, setHeight = null, images: allowImages = false, light = false, units = W, onActive = () => {}, inking = () => true }) {
   let strokes = [], undo = [], redo = [], images = [], selected = null;
   let cur = null, pid = null, pan = null, erasing = false, erased = false, drag = null, rect = null;
   let scale = 1, width = 0, dpr = 2, saveTimer = 0, dead = false, zoomTimer = 0;
@@ -288,7 +289,8 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
       select(hit ? images[hit.index].id : null);
       if (hit) { e.preventDefault(); pid = e.pointerId; drag = { ...hit, start: xy(e), orig: { ...images[hit.index] } }; return; }
     }
-    if (e.pointerType === 'touch') { pan = { id: e.pointerId, y: e.clientY }; return; }
+    if (e.pointerType === 'touch') { pan = { id: e.pointerId, x: e.clientX, y: e.clientY }; return; }
+    if (!inking()) { e.preventDefault(); pan = { id: e.pointerId, x: e.clientX, y: e.clientY }; return; } // pencil off: any pointer only scrolls
     if (prefs.tool === 'move') return;
     e.preventDefault();
     pid = e.pointerId;
@@ -301,6 +303,9 @@ export function mountSheet(stage, { id, height, setHeight = null, images: allowI
     if (pan && e.pointerId === pan.id) {
       const scroller = stage.closest('.scroll');
       if (scroller) scroller.scrollTop -= e.clientY - pan.y;
+      const wide = stage.closest('.pdf-pages'); // a zoomed PDF also scrolls sideways
+      if (wide) wide.scrollLeft -= e.clientX - pan.x;
+      pan.x = e.clientX;
       pan.y = e.clientY;
       return;
     }
