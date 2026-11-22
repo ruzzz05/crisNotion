@@ -621,13 +621,15 @@ select.photo-every { width: auto; min-height: 30px; padding-top: 2px; padding-bo
 .tc-a { font-weight: 700; border-bottom: 3px solid var(--c-red); line-height: 1; }
 
 /* ---------- Printing / Guardar como PDF: the page as it looks on screen, without the app's chrome ---------- */
-@page { margin: 16mm 14mm; }
+/* Margin 0 makes the browser leave out its own header and footer (address, date, page title); the margin is padding repeated on every page instead. */
+@page { margin: 0; }
 @media print {
   .sidebar, .scrim, .tabstrip, .topbar, .kbar, .fbar, .bubble, .pop, .slash, .gutter, .blk-more, .page-ctl, .page-tail, .drop-line,
   .cover-change, .img-grip, .draw-grip, .importHere, .photo-input, .pdf-input { display: none !important; }
   .blk-more, .gutter { display: none !important; }
   .content::before, .blk::before { content: none !important; }
   html, body, .app, .main, .scroll { height: auto !important; overflow: visible !important; display: block !important; position: static !important; }
+  .scroll { padding: 16mm 14mm !important; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   .page, .page-inner, .page-body { max-width: none !important; padding: 0 !important; margin: 0 !important; }
   .blocks { width: 100%; }
