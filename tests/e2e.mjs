@@ -1173,9 +1173,25 @@ await section('tables', async () => {
   await page.click('.tbl-bar button[aria-label="Quitar columna"]'); await sleep(100);
   g = await grid();
   check(g.length === 3 && g[0].length === 3, 'a row and a column were removed: ' + JSON.stringify(g));
+  const cellSel = '.blk[data-t=table] tr:nth-child(2) td:nth-child(2)';
+  await page.click(cellSel); await type('negrita');
+  const selectCell = () => page.evaluate(sel => {
+    const c = document.querySelector(sel);
+    const r = document.createRange(); r.selectNodeContents(c); const s = getSelection(); s.removeAllRanges(); s.addRange(r); c.focus();
+    document.dispatchEvent(new Event('selectionchange'));
+  }, cellSel);
+  await selectCell(); await sleep(250);
+  check(await visible('.fbar'), 'selecting text in a cell shows the formatting bar');
+  await page.click('.fbar [aria-label="Negrita"]'); await sleep(150);
+  check(/<b|font-weight/.test(await page.$eval(cellSel, e => e.innerHTML)), 'bold can be applied inside a cell: ' + await page.$eval(cellSel, e => e.innerHTML));
+  await selectCell(); await sleep(250);
+  await page.click('.fbar [aria-label="Resaltar"]'); await sleep(200);
+  await page.evaluate(() => document.querySelector('.pop .menu-item, .pop button, .menu button')?.click()); await sleep(200);
+  check(/background/.test(await page.$eval(cellSel, e => e.innerHTML)), 'highlight can be applied inside a cell: ' + await page.$eval(cellSel, e => e.innerHTML));
   await sleep(1300);
   await page.reload(); await sleep(900);
-  check(JSON.stringify(await grid()) === JSON.stringify(g), 'the table is still there after reloading');
+  check(JSON.stringify(await grid()) === JSON.stringify(g.map((r, i) => r.map((t, j) => (i === 1 && j === 1 ? 'negrita' : t)))), 'the table is still there after reloading');
+  check(/<b|font-weight/.test(await page.$eval(cellSel, e => e.innerHTML)), 'the bold text is still bold after reloading');
   await shot('table');
 });
 

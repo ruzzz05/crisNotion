@@ -51,6 +51,9 @@ export function authErrorMessage(code) {
 /** The notes on a device belong to one account: 'claim' (nobody yet), 'keep' (this account) or 'other'. */
 export const ownerAction = (owner, uid) => (!owner ? 'claim' : owner === uid ? 'keep' : 'other');
 
+/** A device never joined to this account that holds notes, signing into an account that holds notes too: the person must choose. */
+export const needsChoice = (deviceHasNotes, cloudHasNotes) => !!deviceHasNotes && !!cloudHasNotes;
+
 // ---------- Which copy wins ----------
 
 /**

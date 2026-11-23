@@ -57,6 +57,19 @@ function account() {
           h('p', { class: 'cloud-error', role: 'alert' }, error),
           h('div', { class: 'form-actions start' }, h('button', { class: 'btn primary cloud-in' }, 'Entrar'), act('Crear cuenta', go('signUp'), 'btn cloud-up'))));
     }
+    if (s.phase === 'choose') {
+      return box.replaceChildren(
+        h('p', null, `Has entrado como «${s.user}», pero este dispositivo ya tiene apuntes y esa cuenta también. Por seguridad no se ha subido ni bajado nada todavía.`),
+        h('p', { class: 'muted' }, 'Si los apuntes de este dispositivo no son de esa cuenta, no los mezcles: podrían acabar en la cuenta equivocada.'),
+        h('div', { class: 'form-actions start' },
+          act('Cerrar sesión', () => cloud.signOut()),
+          act(`Usar solo los de «${s.user}» (borra lo de este dispositivo)`, async () => {
+            if (await confirmDialog(`Se borrarán de este dispositivo los apuntes que tiene ahora y se cargarán los de «${s.user}».`, 'Borrar y cambiar')) cloud.adopt();
+          }, 'btn danger'),
+          act('Juntar los dos', async () => {
+            if (await confirmDialog(`Los apuntes de este dispositivo se subirán a la cuenta «${s.user}» y se mezclarán con los que ya tiene. Hazlo solo si todo es tuyo.`, 'Juntar')) cloud.merge();
+          })));
+    }
     if (s.phase === 'other') {
       return box.replaceChildren(
         h('p', null, `Has entrado como «${s.user}», pero los apuntes de este dispositivo son de la cuenta «${s.owner}». No se mezclan: no se sube ni se baja nada.`),

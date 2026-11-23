@@ -6,7 +6,7 @@ import * as S from './store.js';
 import { app } from './ui.js';
 import { firebaseConfig } from './firebase-config.js';
 import { firestore } from './firestore.js';
-import { ascii, authErrorMessage, isFileData, createSync, emailToUsername, keyOf, ownerAction, parseKey, usernameToEmail, validatePassword, validateUsername } from './synccore.js';
+import { ascii, authErrorMessage, isFileData, createSync, emailToUsername, keyOf, needsChoice, ownerAction, parseKey, usernameToEmail, validatePassword, validateUsername } from './synccore.js';
 
 const SDK = 'https://www.gstatic.com/firebasejs/10.14.1/';
 const MAX_FILE = 25e6;     // characters of base64 (about 18 MB of file): larger files stay on the device
@@ -56,7 +56,8 @@ const engine = createSync({ local, remote: null, state: ls, maxPayload: MAX_FILE
 
 // ---------- State shown in the interface ----------
 
-// phase: 'off' (not available) | 'loading' | 'signedout' | 'other' (the notes here belong to another account) | 'on'
+// phase: 'off' (not available) | 'loading' | 'signedout' | 'other' (the notes here belong to another account)
+//        | 'choose' (this device and the account both hold notes and were never joined: nothing moves until the person picks) | 'on'
 const status = { phase: hook?.off ? 'off' : 'loading', user: '', syncing: false, error: '', lastOk: ls.get('lastOk') || 0 };
 const listeners = new Set();
 const tell = patch => { Object.assign(status, patch); for (const fn of listeners) fn(); };
@@ -71,6 +72,7 @@ export const cloud = {
     if (s.phase === 'loading') return 'Nube: comprobando…';
     if (s.phase === 'signedout') return 'Nube: sin sesión';
     if (s.phase === 'other') return 'Nube: otra cuenta';
+    if (s.phase === 'choose') return 'Nube: elige qué hacer';
     if (!s.online) return 'Sin conexión';
     if (s.syncing) return 'Sincronizando…';
     if (s.error) return 'Error al sincronizar';
@@ -81,9 +83,15 @@ export const cloud = {
   signUp: (user, pass) => enter('up', user, pass),
   async signOut() { await auth?.signOut(); },
   syncNow: () => run(),
+  /** Both hold notes and had never met: put them together (this device's notes go up to the account, the account's come down). */
+  async merge() {
+    if (status.phase !== 'choose' || !session) return;
+    await attach(session, true);
+    app.refresh();
+  },
   /** Erase what this device holds and make it a copy of the signed-in account. */
   async adopt() {
-    if (status.phase !== 'other' || !session) return;
+    if ((status.phase !== 'other' && status.phase !== 'choose') || !session) return;
     await S.wipe();
     engine.reset();
     ls.set('owner', null);
@@ -122,14 +130,24 @@ S.watch((kind, id, op) => {
   if (status.phase === 'on') { tell({}); schedule(); }
 });
 
-async function attach(user) {
+/** Whether the device holds anything of the person's own (the settings document exists on its own and does not count). */
+const deviceHasNotes = async () => (await S.localKeys()).some(([kind, id]) => !(kind === 'd' && id === 'settings'));
+
+async function attach(user, merge = false) {
   session = user;
   const owner = ls.get('owner');
   const what = ownerAction(owner, user.uid);
   if (what === 'other') { engine.remote = null; return tell({ phase: 'other', user: user.username }); }
   engine.remote = user.remote || firestore({ projectId: firebaseConfig.projectId, uid: user.uid, token: user.token });
   if (what === 'claim') {
-    // First time this account is used here: whatever the device already holds goes up to it.
+    // First time this account is used here. If the device holds notes and the account does too, they could be
+    // from two different people: nothing is uploaded or downloaded until the person chooses.
+    if (!merge && await deviceHasNotes()) {
+      let inCloud = true; // when it cannot be checked, ask
+      try { inCloud = (await engine.remote.changes(null)).items.some(i => !i.gone && i.key !== 'd_settings'); } catch { /* offline */ }
+      if (needsChoice(true, inCloud)) { engine.remote = null; return tell({ phase: 'choose', user: user.username, error: '' }); }
+    }
+    // Otherwise whatever the device already holds goes up to the account.
     engine.reset();
     await engine.markAll();
     ls.set('owner', user.uid);

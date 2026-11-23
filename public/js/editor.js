@@ -476,7 +476,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     const s = getSelection();
     if (!s.rangeCount || s.isCollapsed) return null;
     const n = s.getRangeAt(0).commonAncestorContainer;
-    const c = (n.nodeType === 1 ? n : n.parentElement)?.closest('.content');
+    const c = (n.nodeType === 1 ? n : n.parentElement)?.closest('.content, .tbl-cell'); // table cells take the same formatting
     return c && list.contains(c) && c.parentElement.dataset.t !== 'code' ? c : null;
   };
 
@@ -486,7 +486,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     const r = s.getRangeAt(0), n = r.commonAncestorContainer;
     const inside = (n.nodeType === 1 ? n : n.parentElement)?.closest('code');
     if (inside) {
-      const c = inside.closest('.content');
+      const c = inside.closest('.content, .tbl-cell');
       inside.replaceWith(...inside.childNodes);
       c.normalize();
       c.dispatchEvent(new InputEvent('input', { bubbles: true }));
@@ -499,7 +499,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       r.surroundContents(code);
       for (const x of code.querySelectorAll('code')) x.replaceWith(...x.childNodes);
       s.selectAllChildren(code);
-      code.closest('.content').dispatchEvent(new InputEvent('input', { bubbles: true }));
+      code.closest('.content, .tbl-cell').dispatchEvent(new InputEvent('input', { bubbles: true }));
       return;
     } catch { /* selection crosses element boundaries: fall back to re-inserting it */ }
     const tmp = h('div');
@@ -558,6 +558,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
   function splitSelection(t) {
     const c = selectedContent(), s = getSelection();
     if (!c || !s.rangeCount || s.isCollapsed) return;
+    if (c.classList.contains('tbl-cell')) return toast('Eso no se puede hacer dentro de una tabla.');
     const id = c.parentElement.dataset.id, b = B(id), i = I(id);
     if (b.row) return toast('Ese bloque está en columnas; sácalo para dividirlo.');
     const r = s.getRangeAt(0).cloneRange();

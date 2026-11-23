@@ -1,9 +1,12 @@
 // Table block: `block.rows` is an array of rows of plain-text cells. Every cell is editable in place; the bar above the table
 // adds or removes rows and columns next to the cell you are in (or at the end when none is chosen).
 import { h, icon } from './ui.js';
+import { esc, sanitize } from './util.js';
 import { tableAddRow, tableAddCol, tableDelRow, tableDelCol } from './model.js';
 
 export function mountTable(host, block, changed) {
+  // Cells hold formatted text (bold, colour, highlight…) as HTML. A table made when cells were plain text is converted once.
+  if (!block.rich) { block.rows = block.rows.map(r => r.map(t => esc(t || '').replace(/\n/g, '<br>'))); block.rich = true; }
   let at = { r: 0, c: 0 }, body;
   const bar = h('div', { class: 'tbl-bar', role: 'toolbar', 'aria-label': 'Herramientas de la tabla' });
   const wrap = h('div', { class: 'tbl-wrap' });
@@ -32,13 +35,13 @@ export function mountTable(host, block, changed) {
       row.forEach((text, c) => {
         const td = tr.insertCell();
         td.className = 'tbl-cell';
-        td.contentEditable = 'plaintext-only';
+        td.contentEditable = 'true';
         td.spellcheck = true;
-        td.textContent = text;
+        td.innerHTML = sanitize(text);
         td.setAttribute('role', 'textbox');
         td.setAttribute('aria-label', `Fila ${r + 1}, columna ${c + 1}`);
         td.addEventListener('focus', () => { at = { r, c }; });
-        td.addEventListener('input', () => { rows()[r][c] = td.textContent; changed(); });
+        td.addEventListener('input', () => { rows()[r][c] = td.innerHTML === '<br>' ? '' : td.innerHTML; changed(); });
         td.addEventListener('paste', e => {
           e.preventDefault();
           document.execCommand('insertText', false, (e.clipboardData.getData('text/plain') || '').replace(/\r?\n/g, ' '));
@@ -50,9 +53,10 @@ export function mountTable(host, block, changed) {
             if (e.shiftKey) { if (!first) focusCell(c ? r : r - 1, c ? c - 1 : w - 1); }
             else if (last) edit(tableAddRow(rows(), rows().length), r + 1, 0); // Tab on the last cell grows the table
             else focusCell(c === w - 1 ? r + 1 : r, c === w - 1 ? 0 : c + 1);
-          } else if (e.key === 'Enter' && !e.shiftKey) {
+          } else if (e.key === 'Enter') {
             e.preventDefault();
-            if (r < rows().length - 1) focusCell(r + 1, c); // Enter goes down; Shift+Enter breaks the line
+            if (e.shiftKey) document.execCommand('insertLineBreak');
+            else if (r < rows().length - 1) focusCell(r + 1, c); // Enter goes down; Shift+Enter breaks the line
           }
         });
       });
