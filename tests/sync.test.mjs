@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ascii, split, keyOf, parseKey, decide, usernameToEmail, validateUsername, ownerAction, needsChoice, createSync, isFileData } from '../public/js/synccore.js';
+import { ascii, split, keyOf, parseKey, decide, usernameToEmail, validateUsername, ownerAction, needsChoice, accountRole, createSync, isFileData } from '../public/js/synccore.js';
 
 test('ascii keeps JSON valid while leaving only ASCII, so it can be cut anywhere', () => {
   const src = JSON.stringify({ t: 'Matemáticas 🚀 «límites»' });
@@ -205,4 +205,11 @@ test('needsChoice: a device with notes and an account with notes are never joine
   assert.equal(needsChoice(true, false), false); // empty account: the device's notes just go up
   assert.equal(needsChoice(false, true), false); // empty device: the account's notes just come down
   assert.equal(needsChoice(false, false), false);
+});
+
+test('accountRole: only the main account syncs; any other is a guest', () => {
+  assert.equal(accountRole(null, 'u1'), 'unset');
+  assert.equal(accountRole({}, 'u1'), 'unset');
+  assert.equal(accountRole({ uid: 'u1' }, 'u1'), 'main');
+  assert.equal(accountRole({ uid: 'u1' }, 'u2'), 'guest');
 });

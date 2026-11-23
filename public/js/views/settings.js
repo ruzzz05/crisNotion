@@ -57,6 +57,23 @@ function account() {
           h('p', { class: 'cloud-error', role: 'alert' }, error),
           h('div', { class: 'form-actions start' }, h('button', { class: 'btn primary cloud-in' }, 'Entrar'), act('Crear cuenta', go('signUp'), 'btn cloud-up'))));
     }
+    if (s.phase === 'setmain') {
+      return box.replaceChildren(
+        h('p', null, `Has entrado como «${s.user}». Aún no has elegido cuál es tu cuenta principal, la única que guarda y recupera tus apuntes en este dispositivo. Mientras tanto no se sube ni se baja nada.`),
+        h('div', { class: 'form-actions start' },
+          act(`Sí, «${s.user}» es mi cuenta principal`, () => cloud.makeMain(), 'btn primary'),
+          act('Entrar solo de invitado (sin sincronizar)', () => cloud.stayGuest()),
+          act('Cerrar sesión', () => cloud.signOut())));
+    }
+    if (s.phase === 'guest') {
+      return box.replaceChildren(
+        h('p', null, `Has entrado como «${s.user}», que no es tu cuenta principal${s.main ? ` («${s.main}»)` : ''}. No se sube ni se baja nada: tus apuntes y los de esa cuenta no se tocan.`),
+        h('div', { class: 'form-actions start' },
+          act('Cerrar sesión', () => cloud.signOut(), 'btn primary'),
+          act(`Hacer de «${s.user}» mi cuenta principal`, async () => {
+            if (await confirmDialog(`«${s.user}» pasará a ser la única cuenta que sincroniza en este dispositivo. Después podrás elegir qué hacer con los apuntes que hay aquí.`, 'Cambiar')) cloud.makeMain();
+          })));
+    }
     if (s.phase === 'choose') {
       return box.replaceChildren(
         h('p', null, `Has entrado como «${s.user}», pero este dispositivo ya tiene apuntes y esa cuenta también. Por seguridad no se ha subido ni bajado nada todavía.`),

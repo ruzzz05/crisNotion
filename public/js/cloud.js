@@ -6,7 +6,7 @@ import * as S from './store.js';
 import { app } from './ui.js';
 import { firebaseConfig } from './firebase-config.js';
 import { firestore } from './firestore.js';
-import { ascii, authErrorMessage, isFileData, createSync, emailToUsername, keyOf, needsChoice, ownerAction, parseKey, usernameToEmail, validatePassword, validateUsername } from './synccore.js';
+import { accountRole, ascii, authErrorMessage, isFileData, createSync, emailToUsername, keyOf, needsChoice, ownerAction, parseKey, usernameToEmail, validatePassword, validateUsername } from './synccore.js';
 
 const SDK = 'https://www.gstatic.com/firebasejs/10.14.1/';
 const MAX_FILE = 25e6;     // characters of base64 (about 18 MB of file): larger files stay on the device
@@ -57,13 +57,14 @@ const engine = createSync({ local, remote: null, state: ls, maxPayload: MAX_FILE
 // ---------- State shown in the interface ----------
 
 // phase: 'off' (not available) | 'loading' | 'signedout' | 'other' (the notes here belong to another account)
+//        | 'setmain' (no main account chosen yet: nothing syncs) | 'guest' (signed in with an account that is not the main one: nothing syncs)
 //        | 'choose' (this device and the account both hold notes and were never joined: nothing moves until the person picks) | 'on'
 const status = { phase: hook?.off ? 'off' : 'loading', user: '', syncing: false, error: '', lastOk: ls.get('lastOk') || 0 };
 const listeners = new Set();
 const tell = patch => { Object.assign(status, patch); for (const fn of listeners) fn(); };
 
 export const cloud = {
-  get status() { return { ...status, pending: engine.pending(), tooBig: engine.tooBig().length, online: navigator.onLine !== false, owner: ls.get('ownerName') || '' }; },
+  get status() { return { ...status, pending: engine.pending(), tooBig: engine.tooBig().length, online: navigator.onLine !== false, owner: ls.get('ownerName') || '', main: ls.get('main')?.name || '' }; },
   onStatus(fn) { listeners.add(fn); return () => listeners.delete(fn); },
   /** One short line for the sidebar. */
   label() {
@@ -73,6 +74,8 @@ export const cloud = {
     if (s.phase === 'signedout') return 'Nube: sin sesión';
     if (s.phase === 'other') return 'Nube: otra cuenta';
     if (s.phase === 'choose') return 'Nube: elige qué hacer';
+    if (s.phase === 'setmain') return 'Nube: elige cuenta principal';
+    if (s.phase === 'guest') return 'Nube: invitado (sin sincronizar)';
     if (!s.online) return 'Sin conexión';
     if (s.syncing) return 'Sincronizando…';
     if (s.error) return 'Error al sincronizar';
@@ -83,6 +86,15 @@ export const cloud = {
   signUp: (user, pass) => enter('up', user, pass),
   async signOut() { await auth?.signOut(); },
   syncNow: () => run(),
+  /** This account becomes the main one, the only one that syncs on this device. */
+  async makeMain() {
+    if ((status.phase !== 'setmain' && status.phase !== 'guest') || !session) return;
+    ls.set('main', { uid: session.uid, name: session.username });
+    await attach(session);
+    app.refresh();
+  },
+  /** Stay signed in without syncing: nothing is uploaded or downloaded. */
+  stayGuest() { if (status.phase === 'setmain' && session) { engine.remote = null; tell({ phase: 'guest', user: session.username }); } },
   /** Both hold notes and had never met: put them together (this device's notes go up to the account, the account's come down). */
   async merge() {
     if (status.phase !== 'choose' || !session) return;
@@ -135,6 +147,10 @@ const deviceHasNotes = async () => (await S.localKeys()).some(([kind, id]) => !(
 
 async function attach(user, merge = false) {
   session = user;
+  // One account matters: the main one. A device that already synced with an account keeps it as its main account.
+  if (!ls.get('main') && ls.get('owner')) ls.set('main', { uid: ls.get('owner'), name: ls.get('ownerName') || '' });
+  const role = accountRole(ls.get('main'), user.uid);
+  if (role !== 'main') { engine.remote = null; return tell({ phase: role === 'unset' ? 'setmain' : 'guest', user: user.username, error: '' }); }
   const owner = ls.get('owner');
   const what = ownerAction(owner, user.uid);
   if (what === 'other') { engine.remote = null; return tell({ phase: 'other', user: user.username }); }
@@ -203,6 +219,7 @@ async function enter(mode, user, pass) {
 
 async function start() {
   if (hook?.off) return;
+  if (hook?.uid) { if (!ls.get('main')) ls.set('main', { uid: hook.uid, name: hook.username || 'prueba' }); }
   if (hook?.uid) return attach({ uid: hook.uid, username: hook.username || 'prueba', remote: hook.remote });
   try { await loadAuth(); } catch (e) {
     // No connection (or Firebase unreachable): the app goes on with the device's data and tries again later.
