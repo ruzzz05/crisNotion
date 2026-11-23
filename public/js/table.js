@@ -4,6 +4,34 @@ import { h, icon } from './ui.js';
 import { esc, sanitize } from './util.js';
 import { tableAddRow, tableAddCol, tableDelRow, tableDelCol } from './model.js';
 
+/** Whether the caret sits where an arrow would leave the cell: start/end of the text for left/right, first/last line for up/down. */
+function leaving(td, [dr, dc]) {
+  const sel = getSelection();
+  if (!sel.rangeCount || !sel.isCollapsed || !td.contains(sel.anchorNode)) return false;
+  const range = sel.getRangeAt(0);
+  if (dc) {
+    const probe = document.createRange();
+    probe.selectNodeContents(td);
+    if (dc < 0) probe.setEnd(range.startContainer, range.startOffset); else probe.setStart(range.endContainer, range.endOffset);
+    return probe.toString() === '' && probe.cloneContents().querySelector('br, img') === null;
+  }
+  if (!td.textContent) return true;
+  let caret = range.getClientRects()[0];
+  if (!caret || (!caret.height && !caret.width)) {
+    // an empty line has no rectangle of its own: borrow one from a temporary marker
+    const mark = document.createElement('span');
+    mark.textContent = '\u200b';
+    range.insertNode(mark);
+    caret = mark.getBoundingClientRect();
+    mark.remove();
+    td.normalize();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  const box = td.getBoundingClientRect(), line = Math.max(caret.height, 12);
+  return dr < 0 ? caret.top - box.top < line + 6 : box.bottom - caret.bottom < line + 6;
+}
+
 export function mountTable(host, block, changed) {
   // Cells hold formatted text (bold, colour, highlight…) as HTML. A table made when cells were plain text is converted once.
   if (!block.rich) { block.rows = block.rows.map(r => r.map(t => esc(t || '').replace(/\n/g, '<br>'))); block.rich = true; }
@@ -47,6 +75,21 @@ export function mountTable(host, block, changed) {
           document.execCommand('insertText', false, (e.clipboardData.getData('text/plain') || '').replace(/\r?\n/g, ' '));
         });
         td.addEventListener('keydown', e => {
+          const dir = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[e.key];
+          if (dir && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+            // Ctrl/Cmd + arrow: a new row or column right next to this cell, on the side of the arrow.
+            e.preventDefault();
+            const [dr, dc] = dir;
+            if (dr) edit(tableAddRow(rows(), dr < 0 ? r : r + 1), dr < 0 ? r : r + 1, c);
+            else edit(tableAddCol(rows(), dc < 0 ? c : c + 1), r, dc < 0 ? c : c + 1);
+            return;
+          }
+          if (dir && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && leaving(td, dir)) {
+            // Arrow at the edge of the text: on to the neighbouring cell (inside the text it moves the caret as usual).
+            const nr = r + dir[0], nc = c + dir[1];
+            if (nr >= 0 && nr < rows().length && nc >= 0 && nc < rows()[0].length) { e.preventDefault(); focusCell(nr, nc); }
+            return;
+          }
           if (e.key === 'Tab') {
             e.preventDefault();
             const w = rows()[0].length, last = r === rows().length - 1 && c === w - 1, first = r === 0 && c === 0;

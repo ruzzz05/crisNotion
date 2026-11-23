@@ -1192,6 +1192,27 @@ await section('tables', async () => {
   await page.reload(); await sleep(900);
   check(JSON.stringify(await grid()) === JSON.stringify(g.map((r, i) => r.map((t, j) => (i === 1 && j === 1 ? 'negrita' : t)))), 'the table is still there after reloading');
   check(/<b|font-weight/.test(await page.$eval(cellSel, e => e.innerHTML)), 'the bold text is still bold after reloading');
+  // arrows move between cells; Ctrl + arrow adds a row or column next to the current cell
+  const cell = (r, c) => `.blk[data-t=table] tr:nth-child(${r}) td:nth-child(${c})`;
+  await page.click(cell(3, 3)); await press('ArrowUp'); await type('U');
+  g = await grid();
+  check(g[1][2] === 'U', 'ArrowUp from an empty cell goes to the cell above: ' + JSON.stringify(g[1]));
+  await press('ArrowLeft'); await press('ArrowLeft'); await type('L');
+  g = await grid();
+  check(g[1][1].endsWith('L') || g[1][0] === 'L', 'ArrowLeft at the start of the text goes to the cell on the left: ' + JSON.stringify(g[1]));
+  const before = await grid(), ctrl = async k => { await page.keyboard.down('Control'); await press(k); await page.keyboard.up('Control'); await sleep(120); };
+  await page.click(cell(2, 2));
+  await ctrl('ArrowDown');
+  let a = await grid();
+  check(a.length === before.length + 1 && a[2].every(t => t === ''), 'Ctrl+ArrowDown adds a row right below: ' + a.length);
+  await type('d');
+  check((await grid())[2][1] === 'd', 'the caret is in the new cell below');
+  await ctrl('ArrowRight');
+  a = await grid();
+  check(a[0].length === before[0].length + 1 && a[2][2] === '' && a[2][1] === 'd', 'Ctrl+ArrowRight adds a column right next to this one: ' + JSON.stringify(a[2]));
+  await ctrl('ArrowUp'); await ctrl('ArrowLeft');
+  a = await grid();
+  check(a.length === before.length + 2 && a[0].length === before[0].length + 2, 'Ctrl+ArrowUp and Ctrl+ArrowLeft add above and to the left: ' + a.length + 'x' + a[0].length);
   await shot('table');
 });
 
