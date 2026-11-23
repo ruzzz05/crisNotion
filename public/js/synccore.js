@@ -51,8 +51,9 @@ export function authErrorMessage(code) {
 /** The notes on a device belong to one account: 'claim' (nobody yet), 'keep' (this account) or 'other'. */
 export const ownerAction = (owner, uid) => (!owner ? 'claim' : owner === uid ? 'keep' : 'other');
 
-/** The device syncs with one main account: 'unset' (none chosen yet), 'main' (this one) or 'guest' (any other: signed in, but nothing is uploaded or downloaded). */
-export const accountRole = (main, uid) => (!main?.uid ? 'unset' : main.uid === uid ? 'main' : 'guest');
+/** Only the main account syncs; any other account is a guest (signed in, but nothing is uploaded or downloaded). */
+export const MAIN_USER = 'cris';
+export const accountRole = (username, main = MAIN_USER) => (normalize(username) === normalize(main) ? 'main' : 'guest');
 
 /** A device never joined to this account that holds notes, signing into an account that holds notes too: the person must choose. */
 export const needsChoice = (deviceHasNotes, cloudHasNotes) => !!deviceHasNotes && !!cloudHasNotes;
