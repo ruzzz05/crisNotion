@@ -214,7 +214,7 @@ test('photoIndex rotates through the photos once per period', async () => {
 });
 
 // ---------- Multi-day events, custom kinds, task ordering ----------
-import { spanPart, mergeKinds, placeAt, groupTasks, shownGroups, eventColor, stepPage, parsePage, stepZoom } from '../public/js/model.js';
+import { spanPart, mergeKinds, placeAt, groupTasks, shownGroups, eventColor, stepPage, parsePage, stepZoom, newTable, tableAddRow, tableAddCol, tableDelRow, tableDelCol, tableText } from '../public/js/model.js';
 
 test('spanPart: a one-day event shows its title', () => {
   assert.equal(spanPart({ date: '2026-11-10' }, '2026-11-10'), 'single');
@@ -330,4 +330,20 @@ test('stepZoom moves between PDF zoom steps and stops at both ends', () => {
   assert.equal(stepZoom(1, -1), 1);
   assert.equal(stepZoom(2, -1), 1.5);
   assert.equal(stepZoom(3, 1), 3);
+});
+
+test('tables: add and remove rows and columns, never going below 1x1', () => {
+  const t = newTable(2, 2);
+  assert.deepEqual(t, [['', ''], ['', '']]);
+  t[0][0] = 'a';
+  const r = tableAddRow(t, 1);
+  assert.equal(r.length, 3); assert.equal(r[0][0], 'a'); assert.deepEqual(r[1], ['', '']);
+  const c = tableAddCol(t, 2);
+  assert.deepEqual(c[0], ['a', '', '']);
+  assert.deepEqual(tableDelCol(c, 0)[0], ['', '']);
+  assert.equal(tableDelRow(r, 0).length, 2);
+  assert.equal(tableDelRow(newTable(1, 3), 0).length, 1);
+  assert.equal(tableDelCol(newTable(3, 1), 0)[0].length, 1);
+  assert.equal(t[0].length, 2); // the originals are not changed
+  assert.equal(tableText([['x', ''], ['y', 'z']]), 'x y z');
 });

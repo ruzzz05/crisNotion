@@ -384,3 +384,18 @@ export function backspaceAction({ prevText, prevT, curT, curEmpty }) {
   if (curEmpty) return 'remove';
   return 'none';
 }
+
+// ---------- Tables: a block holds `rows`, an array of rows, each an array of cell texts ----------
+
+/** An empty table of `r` rows by `c` columns. */
+export const newTable = (r = 3, c = 3) => Array.from({ length: Math.max(1, r) }, () => Array(Math.max(1, c)).fill(''));
+/** Rows with an empty row inserted at index `i` (0..length). */
+export const tableAddRow = (rows, i) => { const w = rows[0]?.length || 1, out = rows.map(r => [...r]); out.splice(Math.max(0, Math.min(i, out.length)), 0, Array(w).fill('')); return out; };
+/** Rows with an empty column inserted at index `i` (0..width). */
+export const tableAddCol = (rows, i) => rows.map(r => { const o = [...r]; o.splice(Math.max(0, Math.min(i, o.length)), 0, ''); return o; });
+/** Rows without row `i`; a table always keeps at least one row. */
+export const tableDelRow = (rows, i) => (rows.length <= 1 ? rows : rows.filter((_, k) => k !== i).map(r => [...r]));
+/** Rows without column `i`; a table always keeps at least one column. */
+export const tableDelCol = (rows, i) => ((rows[0]?.length || 0) <= 1 ? rows : rows.map(r => r.filter((_, k) => k !== i)));
+/** All the text of a table, for searching. */
+export const tableText = rows => (rows || []).flat().filter(Boolean).join(' ');

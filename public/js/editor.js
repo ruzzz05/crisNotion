@@ -4,11 +4,12 @@
 import * as S from './store.js';
 import { h, icon, app, menu, pop, placeNear, toast } from './ui.js';
 import { COLORS, COLOR_NAMES, barTop, blocksTouchSelection, esc, pasteHtml, sanitize, shouldCapitalize, spokenText, formatBarTop } from './util.js';
-import { belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, pdfAssets, rangeEnd, rowOf, rowSizes, splitBlock, backspaceAction } from './model.js';
+import { newTable, belowIndex, filterCommands, hidden, joinRow, leaveRow, maxIndent, moveRange, normalizeRows, numbering, pdfAssets, rangeEnd, rowOf, rowSizes, splitBlock, backspaceAction } from './model.js';
 import { createHistory } from './history.js';
 import { mountDrawing } from './drawing.js';
 import { imageBox, shrink } from './image.js';
 import { mountPdf } from './pdf.js';
+import { mountTable } from './table.js';
 
 const TEXT = new Set(['p', 'h1', 'h2', 'h3', 'bullet', 'num', 'todo', 'toggle', 'quote', 'callout', 'code']);
 const LIST = new Set(['bullet', 'num', 'todo']);
@@ -28,6 +29,7 @@ export const COMMANDS = [
   { t: 'code', label: 'Código', desc: 'Un fragmento de código.', glyph: '</>', keys: 'code codigo' },
   { t: 'image', label: 'Imagen', desc: 'Sube una foto o hazla con la cámara.', glyph: '🖼️', keys: 'image foto photo camara' },
   { t: 'draw', label: 'Dibujo a mano', desc: 'Escribe o dibuja con el lápiz.', glyph: '✏️', keys: 'draw lapiz pencil apuntes' },
+  { t: 'table', label: 'Tabla', desc: 'Filas y columnas para ordenar datos.', glyph: '▦', keys: 'table tabla filas columnas cuadro' },
   { t: 'pdf', label: 'PDF', desc: 'Sube un PDF para subrayarlo y anotarlo.', glyph: '📑', keys: 'documento archivo fichero' },
 ];
 const LABEL = Object.fromEntries(COMMANDS.map(c => [c.t, c.label]));
@@ -148,6 +150,10 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
       const host = h('div', { class: 'draw' });
       el.append(host);
       cleanups.set(b.id, mountDrawing(host, b, touch));
+    } else if (b.t === 'table') {
+      const host = h('div', { class: 'table' });
+      el.append(host);
+      cleanups.set(b.id, mountTable(host, b, touch));
     } else if (b.t === 'pdf') {
       const host = h('div', { class: 'pdf' });
       el.append(host);
@@ -263,6 +269,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
     }
     const nb = mk(t, { indent: ind(b) });
     delete nb.html;
+    if (t === 'table') nb.rows = newTable(3, 3);
     if (t === 'page') nb.pageId = S.newPage({ bookId: page.bookId, parentId: page.id }).id;
     if (blank && b.t === 'p') { if (b.row) nb.row = b.row; page.blocks.splice(I(b.id), 1, nb); }
     else page.blocks.splice(belowIndex(page.blocks, I(b.id)), 0, nb);
@@ -319,7 +326,7 @@ export function mountEditor(root, page, { focusTitle = false } = {}) {
   function duplicate(id) {
     const i = I(id), b = page.blocks[i];
     pull(id);
-    const copy = { ...b, id: S.uid() };
+    const copy = { ...b, id: S.uid(), ...(b.rows ? { rows: b.rows.map(r => [...r]) } : {}) };
     delete copy.row;
     if (b.t === 'draw') S.getDrawing(id).then(d => d && S.putDrawing({ id: copy.id, strokes: d.strokes })).then(() => { drop(copy.id); sync(); });
     insertAt(belowIndex(page.blocks, i), copy);

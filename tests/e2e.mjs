@@ -19,7 +19,7 @@ const exe = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Applicatio
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   '/usr/bin/google-chrome', '/usr/bin/chromium'].find(p => p && existsSync(p));
 if (!exe) { console.error('No Chrome or Edge found. Set CHROME_PATH.'); server.kill(); process.exit(2); }
-const browser = await puppeteer.launch({ executablePath: exe, headless: true, args: ['--force-color-profile=srgb'] });
+const browser = await puppeteer.launch({ executablePath: exe, headless: true, args: ['--force-color-profile=srgb', ...(process.env.NO_SANDBOX ? ['--no-sandbox'] : [])] });
 const errors = [];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -1150,6 +1150,33 @@ await section('print to PDF', async () => {
   check(pdf.length > 1000, 'a PDF is produced: ' + pdf.length + ' bytes');
   await page.emulateMediaType('screen');
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
+});
+
+await section('tables', async () => {
+  await page.setViewport({ width: 1180, height: 820, deviceScaleFactor: 2, hasTouch: false, isMobile: false });
+  await page.click('.page-tail'); await sleep(80);
+  await type('/tabla'); await sleep(120); await press('Enter'); await sleep(300);
+  const grid = () => page.$$eval('.blk[data-t=table] tr', trs => trs.map(tr => [...tr.cells].map(c => c.textContent)));
+  check(JSON.stringify(await grid()) === JSON.stringify([['', '', ''], ['', '', ''], ['', '', '']]), 'a 3x3 table is created from the slash menu');
+  await page.click('.blk[data-t=table] tr:nth-child(1) td:nth-child(1)');
+  await type('Nombre'); await press('Tab'); await type('Nota');
+  await page.click('.tbl-bar button[aria-label="Fila"]'); await sleep(100);
+  await page.click('.tbl-bar button[aria-label="Columna"]'); await sleep(100);
+  let g = await grid();
+  check(g.length === 4 && g[0].length === 4, 'one row and one column were added: ' + JSON.stringify(g));
+  check(g[0][0] === 'Nombre' && g[0][1] === '' && g[0][2] === 'Nota' || g[0].includes('Nombre') && g[0].includes('Nota'), 'text survives adding rows and columns: ' + JSON.stringify(g[0]));
+  await page.click('.blk[data-t=table] tr:nth-child(4) td:nth-child(1)');
+  await type('abajo');
+  g = await grid();
+  check(g[3][0] === 'abajo', 'cells can still be edited after growing: ' + JSON.stringify(g[3]));
+  await page.click('.tbl-bar button[aria-label="Quitar fila"]'); await sleep(100);
+  await page.click('.tbl-bar button[aria-label="Quitar columna"]'); await sleep(100);
+  g = await grid();
+  check(g.length === 3 && g[0].length === 3, 'a row and a column were removed: ' + JSON.stringify(g));
+  await sleep(1300);
+  await page.reload(); await sleep(900);
+  check(JSON.stringify(await grid()) === JSON.stringify(g), 'the table is still there after reloading');
+  await shot('table');
 });
 
 console.log('\nERRORS:', errors.length ? '\n' + errors.join('\n') : 'none');

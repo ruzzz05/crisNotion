@@ -3,7 +3,7 @@ import * as S from './store.js';
 import * as T from './tabs.js';
 import { h, icon, iconBtn, app, toast, menu, modal, openForm, confirmDialog } from './ui.js';
 import { COLORS, COLOR_NAMES, VERSION, plain, tint } from './util.js';
-import { norm } from './model.js';
+import { norm, tableText } from './model.js';
 import { home } from './views/home.js';
 import { pageView } from './views/page.js';
 import { timetable } from './views/timetable.js';
@@ -247,7 +247,7 @@ function render({ focusTitle = false } = {}) {
 
 function finder() {
   if (document.querySelector('.finder')) return;
-  const index = S.pages().map(p => ({ p, body: (p.blocks || []).map(b => plain(b.html)).filter(Boolean).join(' · ') }));
+  const index = S.pages().map(p => ({ p, body: (p.blocks || []).map(b => plain(b.t === 'table' ? tableText(b.rows) : b.html)).filter(Boolean).join(' · ') }));
   modal('', (body, close) => {
     const input = h('input', { type: 'search', placeholder: 'Buscar páginas, eventos y tareas…', 'aria-label': 'Buscar', autocomplete: 'off' });
     const out = h('div', { class: 'finder-list' });
